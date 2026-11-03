@@ -4,425 +4,599 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>V Studio</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦜</text></svg>">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M8 3h16a6 6 0 0 1 6 6v9a6 6 0 0 1-6 6h-7l-6.5 5.2a.8.8 0 0 1-1.3-.6V24H8a6 6 0 0 1-6-6V9a6 6 0 0 1 6-6z' fill='url(%23g)'/%3E%3Cpath d='M10 12v3M13 9.5v8M16 7.5v12M19 10v7M22 12v3' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <!-- ── story ── --><link rel="stylesheet" href="story.css"><!-- ── /story ── -->
 <link rel="stylesheet" href="features.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><span class="logo">🦜</span><span>V Studio</span></div>
-  <button id="modelPill" class="pill" type="button" title="Chọn và tải mô hình">
-    <span class="dot" id="modelDot"></span><span id="modelText">Đang kết nối…</span>
-    <span class="pill-action">Mô hình ▾</span>
-  </button>
-  <div class="spacer"></div>
-  <button id="themeBtn" class="icon-btn" type="button" title="Đổi giao diện sáng / tối">◐</button>
-</header>
-<div class="update-bar" id="updateBar" hidden>
-  <span class="dot ok" id="updateDot"></span>
-  <span id="updateText"></span>
-  <span class="spacer"></span>
-  <a id="updateNotes" class="small" href="https://github.com/pnnbao97/VieNeu-TTS/commits/main" target="_blank" rel="noopener">Xem thay đổi</a>
-  <button class="btn small primary" id="updateNow" type="button">Cập nhật ngay</button>
-  <button class="btn small ghost" id="updateLater" type="button">Để sau</button>
-</div>
 
-<div class="layout">
-  <main>
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="read" role="tab">Đọc văn bản</button>
-      <button class="tab" data-tab="clone" role="tab">Nhân bản giọng</button>
-      <button class="tab" data-tab="conv" role="tab">Podcast</button>
-      <!-- ── story ── --><button class="tab" data-tab="story" role="tab">Truyện</button><!-- ── /story ── -->
-      <button class="tab" data-tab="srt" role="tab">Phụ đề SRT</button>
-      <button class="tab" data-tab="lex" role="tab">Từ điển phát âm</button>
-    </nav>
+<!-- Icon sprite (stroke icons, 24×24) -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="i-read" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+    <symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></symbol>
+    <symbol id="i-dict" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="m8 13 4-7 4 7M9.1 11h5.7"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21M22 21H7M5 11l9 9"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="i-library" viewBox="0 0 24 24"><path d="m16 6 4 14M12 6v14M8 8v12M4 4v16"/></symbol>
+  </defs>
+</svg>
 
-    <!-- ── Đọc văn bản ─────────────────────────────────────────── -->
-    <section class="panel card" id="tab-read">
-      <div class="field">
-        <div class="label-row">
-          <label for="text">Văn bản</label>
-          <span class="muted small" id="textCount">0 ký tự</span>
-        </div>
-        <div class="text-drop" id="textDrop">
-          <textarea id="text" rows="9" placeholder="Dán hoặc gõ văn bản tiếng Việt (có thể xen tiếng Anh) cần đọc vào đây… hoặc kéo thả tệp .txt, .md, .docx, .pdf vào ô này."></textarea>
-          <div class="drop-veil" aria-hidden="true">Thả tệp để nạp văn bản</div>
-        </div>
-        <div class="toolbar">
-          <span class="muted small">Cảm xúc (thử nghiệm):</span>
-          <button class="chip" data-insert="[cười]" type="button">[cười]</button>
-          <button class="chip" data-insert="[thở dài]" type="button">[thở dài]</button>
-          <button class="chip" data-insert="[hắng giọng]" type="button">[hắng giọng]</button>
-          <span class="spacer"></span>
-          <select id="sampleText" class="small-select" title="Chèn một câu mẫu để nghe thử">
-            <option value="">Câu mẫu…</option>
-          </select>
-          <label class="btn ghost small file-btn">Mở tệp…<input type="file" id="textFile" accept=".txt,.md,.pdf,.docx" hidden></label>
-          <button class="btn ghost small" id="clearText" type="button">Xoá</button>
-        </div>
-      </div>
-      <div class="row-2">
-        <div class="field">
-          <label for="readVoice">Giọng đọc</label>
-          <div class="inline">
-            <select id="readVoice" class="voice-select"></select>
-            <button class="btn ghost" id="previewVoice" type="button" title="Nghe thử giọng này">▶ Nghe thử</button>
+<div class="app">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────── -->
+  <nav class="sidebar" aria-label="Điều hướng">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs>
+        <path d="M8 3h16a6 6 0 0 1 6 6v9a6 6 0 0 1-6 6h-7l-6.5 5.2a.8.8 0 0 1-1.3-.6V24H8a6 6 0 0 1-6-6V9a6 6 0 0 1 6-6z" fill="url(#brandGrad)"/>
+        <path d="M10 12v3M13 9.5v8M16 7.5v12M19 10v7M22 12v3" stroke="#fff" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      </svg>
+      <span class="brand-text"><b>V Studio</b><small>Giọng nói đa ngôn ngữ</small></span>
+    </div>
+
+    <div class="nav" role="tablist">
+      <div class="nav-label">Tạo giọng</div>
+      <button class="tab active" data-tab="read" role="tab" title="Đọc văn bản"><svg class="ic"><use href="#i-read"/></svg><span>Đọc văn bản</span></button>
+      <button class="tab" data-tab="clone" role="tab" title="Nhân bản giọng" data-needs="clone"><svg class="ic"><use href="#i-mic"/></svg><span>Nhân bản giọng</span></button>
+      <button class="tab" data-tab="conv" role="tab" title="Podcast"><svg class="ic"><use href="#i-chat"/></svg><span>Podcast</span></button>
+      <!-- ── story ── --><button class="tab" data-tab="story" role="tab" title="Truyện"><svg class="ic"><use href="#i-book"/></svg><span>Truyện</span></button><!-- ── /story ── -->
+      <button class="tab" data-tab="srt" role="tab" title="Phụ đề SRT"><svg class="ic"><use href="#i-cc"/></svg><span>Phụ đề SRT</span></button>
+      <div class="nav-label">Công cụ</div>
+      <button class="tab" data-tab="lex" role="tab" title="Từ điển phát âm"><svg class="ic"><use href="#i-dict"/></svg><span>Từ điển phát âm</span></button>
+      <button class="nav-btn" id="settingsBtn" type="button" title="Tinh chỉnh giọng" aria-controls="settings" aria-expanded="false"><svg class="ic"><use href="#i-sliders"/></svg><span>Tinh chỉnh giọng</span></button>
+    </div>
+
+    <div class="sidebar-foot">
+      <button id="updBtn" class="nav-btn" type="button" title="Cập nhật V Studio"><svg class="ic"><use href="#i-refresh"/></svg><span>Cập nhật</span><span class="upd-dot" id="updDot" hidden></span></button>
+      <button id="modelPill" class="model-card" type="button" title="Chọn và tải mô hình">
+        <span class="model-ic"><svg class="ic"><use href="#i-cpu"/></svg><span class="dot" id="modelDot"></span></span>
+        <span class="model-txt"><small>Mô hình</small><span id="modelText">Đang kết nối…</span></span>
+        <svg class="ic chev"><use href="#i-chev"/></svg>
+      </button>
+      <button id="themeBtn" class="nav-btn theme-btn" type="button" title="Đổi giao diện sáng / tối">
+        <svg class="ic ic-moon"><use href="#i-moon"/></svg><svg class="ic ic-sun"><use href="#i-sun"/></svg><span>Giao diện</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Workspace ──────────────────────────────────────────────── -->
+  <div class="workspace">
+    <div class="update-bar" id="updateBar" hidden>
+      <svg class="ic"><use href="#i-spark"/></svg>
+      <span class="grow" id="updateText"></span>
+      <button class="btn small ghost" id="updateLater" type="button">Để sau</button>
+      <button class="btn small primary" id="updateNow" type="button">Xem &amp; cập nhật</button>
+    </div>
+    <main>
+      <!-- ── Đọc văn bản ─────────────────────────────────────────── -->
+      <section class="panel" id="tab-read">
+        <header class="page-head">
+          <div><h1>Đọc văn bản</h1><p>Dán văn bản hoặc mở tệp, chọn giọng và nghe ngay. Số, đơn vị và công thức được đọc đúng.</p></div>
+        </header>
+
+        <div class="card editor">
+          <div class="editor-bar">
+            <label for="text" class="editor-title">Văn bản</label>
+            <span class="spacer"></span>
+            <div class="select-wrap compact">
+              <select id="sampleText" class="small-select" title="Chèn một câu mẫu để nghe thử">
+                <option value="">Câu mẫu…</option>
+              </select>
+            </div>
+            <label class="btn ghost small file-btn" title="Mở tệp .txt, .md, .docx, .pdf"><svg class="ic"><use href="#i-folder"/></svg>Mở tệp<input type="file" id="textFile" accept=".txt,.md,.pdf,.docx" hidden></label>
+            <button class="btn ghost small icon-only" id="clearText" type="button" title="Xoá văn bản" aria-label="Xoá văn bản"><svg class="ic"><use href="#i-eraser"/></svg></button>
+          </div>
+          <div class="text-drop" id="textDrop">
+            <textarea id="text" class="editor-area" rows="10" placeholder="Dán hoặc gõ văn bản tiếng Việt (có thể xen tiếng Anh) cần đọc vào đây… hoặc kéo thả tệp .txt, .md, .docx, .pdf vào ô này."></textarea>
+            <div class="drop-veil" aria-hidden="true"><svg class="ic"><use href="#i-upload"/></svg>Thả tệp để nạp văn bản</div>
+          </div>
+          <div class="editor-foot">
+            <span class="emo" data-feature-only="emotions">
+              <span class="muted small">Cảm xúc</span>
+              <button class="chip" data-insert="[cười]" type="button">😄 cười</button>
+              <button class="chip" data-insert="[thở dài]" type="button">😮‍💨 thở dài</button>
+              <button class="chip" data-insert="[hắng giọng]" type="button">🗣️ hắng giọng</button>
+            </span>            <span class="spacer"></span>
+            <span class="muted small tnum" id="textCount">0 ký tự</span>
           </div>
         </div>
-        <div class="field">
-          <label>Cách tạo</label>
-          <div class="segmented" id="genMode">
-            <button type="button" data-v="stream" class="on">Phát trực tiếp</button>
-            <button type="button" data-v="full">Tạo trọn vẹn</button>
-          </div>
-          <div class="hint" id="genModeHint">Phát ngay khi từng đoạn được tạo xong.</div>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn primary big" id="readGo" type="button" disabled>Đọc văn bản</button>
-        <button class="btn ghost" id="readStop" type="button" hidden>■ Dừng</button>
-        <span class="muted small">⌘/Ctrl + Enter</span>
-      </div>
-    </section>
 
-    <!-- ── Nhân bản giọng ─────────────────────────────────────── -->
-    <section class="panel card" id="tab-clone" hidden>
-      <div class="field">
-        <label>Âm thanh mẫu</label>
-        <div class="drop" id="refDrop" tabindex="0">
-          <div class="drop-empty" id="refEmpty">
-            <strong>Kéo thả hoặc bấm để chọn file</strong>
-            <span class="muted small">WAV, MP3, FLAC, M4A, OGG · 3–8 giây, một người nói, càng rõ càng tốt</span>
+        <div class="card">
+          <div class="row-2">
+            <div class="field">
+              <label for="readVoice">Giọng đọc</label>
+              <div class="inline">
+                <select id="readVoice" class="voice-select" data-picker></select>
+                <button class="btn" id="previewVoice" type="button" title="Nghe thử giọng này"><svg class="ic"><use href="#i-play"/></svg>Nghe thử</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Cách tạo</label>
+              <div class="segmented" id="genMode">
+                <button type="button" data-v="stream" class="on">Phát trực tiếp</button>
+                <button type="button" data-v="full">Tạo trọn vẹn</button>
+              </div>
+              <div class="hint" id="genModeHint">Phát ngay khi từng đoạn được tạo xong.</div>
+            </div>
           </div>
-          <div class="drop-full" id="refFull" hidden>
-            <span class="muted small" id="refName"></span>
-            <audio id="refAudio" controls></audio>
+          <div class="actions action-bar">
+            <button class="btn primary big" id="readGo" type="button" disabled><svg class="ic"><use href="#i-play"/></svg>Đọc văn bản</button>
+            <button class="btn ghost danger-soft" id="readStop" type="button" hidden><svg class="ic"><use href="#i-stop"/></svg>Dừng</button>
+            <span class="kbd-hint"><kbd class="kbd-mod">⌘</kbd><kbd>Enter</kbd></span>
           </div>
-          <input type="file" id="refFile" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg" hidden>
         </div>
-        <div class="toolbar">
-          <button class="btn ghost small" id="recBtn" type="button">● Ghi âm</button>
-          <span class="muted small" id="recState"></span>
-          <span class="spacer"></span>
-          <button class="btn ghost small" id="refClear" type="button" hidden>Bỏ file</button>
-        </div>
-      </div>
-      <div class="field">
-        <label class="check"><input type="checkbox" id="refDenoise" checked> Khử nhiễu âm thanh mẫu (khuyến nghị; tự cắt còn ≤ 8 giây)</label>
-        <div class="toolbar">
-          <button class="btn ghost small" id="denoiseBtn" type="button" disabled>Khử nhiễu &amp; nghe thử</button>
-          <audio id="denoisedAudio" controls hidden></audio>
-        </div>
-      </div>
-      <div class="field">
-        <label for="cloneText">Văn bản đọc bằng giọng nhân bản</label>
-        <textarea id="cloneText" rows="4">Xin chào, đây là giọng nói được nhân bản tức thì từ một đoạn âm thanh ngắn. Bạn thấy có giống không?</textarea>
-      </div>
-      <div class="actions">
-        <button class="btn primary big" id="cloneGo" type="button" disabled>Tạo giọng nói</button>
-        <button class="btn ghost" id="cloneStop" type="button" hidden>■ Dừng</button>
-      </div>
+      </section>
 
-      <div class="sub card-inner">
-        <h3>Lưu giọng này để dùng lại</h3>
-        <p class="muted small">Giọng đã lưu xuất hiện trong mọi danh sách giọng (đọc văn bản, hội thoại, SRT) và còn lại sau khi mở lại app. Lưu tại <code id="voicesHome">~/.vieneu</code> (dùng chung với Web UI Gradio của VieNeu).</p>
-        <div class="row-3">
-          <div class="field"><label for="saveName">Tên giọng</label><input id="saveName" maxlength="40" placeholder="VD: Anh Tuấn"></div>
-          <div class="field"><label for="saveDesc">Mô tả</label><input id="saveDesc" maxlength="64" placeholder="nam, trầm, kể chuyện"></div>
-          <div class="field"><label for="saveGender">Giới tính</label>
-            <select id="saveGender"><option value="">—</option><option value="male">Nam</option><option value="female">Nữ</option></select></div>
+      <!-- ── Nhân bản giọng ─────────────────────────────────────── -->
+      <section class="panel" id="tab-clone" hidden>
+        <header class="page-head">
+          <div><h1>Nhân bản giọng</h1><p>Từ 3–8 giây âm thanh của một người, tạo ra giọng đọc mới và lưu lại để dùng ở mọi nơi.</p></div>
+        </header>
+        <div class="notice warn" id="cloneNotice" data-feature-warn="clone" hidden>
+          <svg class="ic"><use href="#i-alert"/></svg>
+          <span class="grow"><b><span class="fw-model"></span> không hỗ trợ nhân bản giọng.</b><br><span class="muted">Mọi thao tác ở mục này đã bị khoá. Nhân bản giọng có với VieNeu-TTS v3 Turbo / Nano (tiếng Việt).</span></span>
+          <button class="btn small" type="button" data-open-models="vi">Đổi mô hình</button>
         </div>
-        <div class="actions"><button class="btn" id="saveVoiceBtn" type="button" disabled>Lưu giọng</button></div>
-        <h3 class="mt">Giọng đã lưu</h3>
-        <ul class="list" id="userVoices"><li class="muted small">Chưa có giọng nào.</li></ul>
-      </div>
-    </section>
+        <div class="feature-body" data-feature="clone">
 
-    <!-- ── Hội thoại ──────────────────────────────────────────── -->
-    <section class="panel card" id="tab-conv" hidden>
-      <div class="field">
-        <div class="label-row"><label for="convScript">Kịch bản podcast (mỗi dòng: <code>Nhân vật: lời thoại</code>)</label>
-          <span class="muted small" id="convCount"></span></div>
-        <textarea id="convScript" rows="9">Phương: Chào mọi người, hôm nay mình và anh Dũng sẽ nói chuyện về giọng đọc tiếng Việt.
+        <div class="card step">
+          <div class="step-head"><span class="step-no">1</span><div><h2>Âm thanh mẫu</h2><p class="muted small">Một người nói, rõ ràng, ít tiếng ồn nền.</p></div></div>
+          <div class="drop" id="refDrop" tabindex="0">
+            <div class="drop-empty" id="refEmpty">
+              <span class="drop-ic"><svg class="ic"><use href="#i-upload"/></svg></span>
+              <strong>Kéo thả hoặc bấm để chọn file</strong>
+              <span class="muted small">WAV, MP3, FLAC, M4A, OGG · 3–8 giây</span>
+            </div>
+            <div class="drop-full" id="refFull" hidden>
+              <span class="ref-name"><svg class="ic"><use href="#i-wave"/></svg><span id="refName"></span></span>
+              <audio id="refAudio" controls></audio>
+            </div>
+            <input type="file" id="refFile" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg" hidden>
+          </div>
+          <div class="toolbar">
+            <button class="btn small rec-btn" id="recBtn" type="button">● Ghi âm</button>
+            <span class="muted small tnum" id="recState"></span>
+            <span class="spacer"></span>
+            <button class="btn ghost small" id="refClear" type="button" hidden><svg class="ic"><use href="#i-x"/></svg>Bỏ file</button>
+          </div>
+          <div class="denoise-row">
+            <label class="switch"><input type="checkbox" id="refDenoise" checked><span class="sw"></span><span>Khử nhiễu âm thanh mẫu <span class="muted">(khuyến nghị; tự cắt còn ≤ 8 giây)</span></span></label>
+            <div class="toolbar">
+              <button class="btn ghost small" id="denoiseBtn" type="button" disabled><svg class="ic"><use href="#i-spark"/></svg>Khử nhiễu &amp; nghe thử</button>
+              <audio id="denoisedAudio" controls hidden></audio>
+            </div>
+          </div>
+        </div>
+
+        <div class="card step">
+          <div class="step-head"><span class="step-no">2</span><div><h2>Nghe thử giọng nhân bản</h2><p class="muted small">Nhập một câu bất kỳ để nghe giọng mới đọc.</p></div></div>
+          <textarea id="cloneText" rows="3">Xin chào, đây là giọng nói được nhân bản tức thì từ một đoạn âm thanh ngắn. Bạn thấy có giống không?</textarea>
+          <div class="actions action-bar">
+            <button class="btn primary big" id="cloneGo" type="button" disabled><svg class="ic"><use href="#i-spark"/></svg>Tạo giọng nói</button>
+            <button class="btn ghost danger-soft" id="cloneStop" type="button" hidden><svg class="ic"><use href="#i-stop"/></svg>Dừng</button>
+          </div>
+        </div>
+
+        <div class="card step">
+          <div class="step-head"><span class="step-no">3</span><div><h2>Lưu giọng để dùng lại</h2><p class="muted small">Giọng đã lưu xuất hiện trong mọi danh sách giọng và còn lại sau khi mở lại app. Lưu tại <code id="voicesHome">~/.vstudio</code>.</p></div></div>
+          <div class="row-3">
+            <div class="field"><label for="saveName">Tên giọng</label><input id="saveName" maxlength="40" placeholder="VD: Anh Tuấn"></div>
+            <div class="field"><label for="saveDesc">Mô tả</label><input id="saveDesc" maxlength="64" placeholder="nam, trầm, kể chuyện"></div>
+            <div class="field"><label for="saveGender">Giới tính</label>
+              <select id="saveGender"><option value="">—</option><option value="male">Nam</option><option value="female">Nữ</option></select></div>
+          </div>
+          <div class="actions"><button class="btn" id="saveVoiceBtn" type="button" disabled><svg class="ic"><use href="#i-save"/></svg>Lưu giọng</button></div>
+          <div class="subsection">
+            <h3>Giọng đã lưu</h3>
+            <ul class="list voice-list" id="userVoices"><li class="muted small">Chưa có giọng nào.</li></ul>
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <!-- ── Hội thoại ──────────────────────────────────────────── -->
+      <section class="panel" id="tab-conv" hidden>
+        <header class="page-head">
+          <div><h1>Podcast</h1><p>Viết kịch bản nhiều nhân vật — mỗi dòng <code>Tên: lời thoại</code> — rồi gán cho mỗi người một giọng.</p></div>
+        </header>
+
+        <div class="card editor">
+          <div class="editor-bar">
+            <label for="convScript" class="editor-title">Kịch bản</label>
+            <span class="muted small tnum" id="convCount"></span>
+            <span class="spacer"></span>
+            <div class="select-wrap compact"><select id="convSample" class="small-select" title="Nạp kịch bản mẫu"><option value="">Kịch bản mẫu…</option></select></div>
+            <label class="btn ghost small file-btn"><svg class="ic"><use href="#i-folder"/></svg>Mở tệp<input type="file" id="convFile" accept=".txt,.md,.pdf,.docx" hidden></label>
+          </div>
+          <textarea id="convScript" class="editor-area" rows="9">Phương: Chào mọi người, hôm nay mình và anh Dũng sẽ nói chuyện về giọng đọc tiếng Việt.
 Dũng: Đúng rồi. Giọng máy bây giờ nghe tự nhiên lắm, nhiều khi không phân biệt được [cười].
 Phương: Vậy anh thử đọc một câu dài cho mọi người nghe xem nào.
 Dũng: Được thôi. Trí tuệ nhân tạo đang thay đổi cách chúng ta làm nội dung, từ sách nói, podcast cho đến video ngắn.
 Phương: Nghe hay thật. Cảm ơn anh Dũng nhé!</textarea>
-      </div>
-      <div class="toolbar">
-        <button class="btn ghost small" id="convScan" type="button">Quét nhân vật</button>
-        <label class="btn ghost small file-btn">Mở tệp kịch bản…<input type="file" id="convFile" accept=".txt,.md,.pdf,.docx" hidden></label>
-        <span class="spacer"></span>
-        <button class="btn ghost small" id="convToStory" type="button" title="Tạo một dự án trong Phòng thu Truyện: sửa và tạo lại từng lượt thoại, lưu lâu dài">Sửa từng lượt trong Phòng thu Truyện →</button>
-      </div>
-      <div class="speakers" id="convSpeakers"></div>
-      <div class="field slider-field" id="convSilenceWrap"></div>
-      <div class="actions">
-        <button class="btn primary big" id="convGo" type="button" disabled>Tạo hội thoại</button>
-        <button class="btn ghost" id="convStop" type="button" hidden>■ Dừng</button>
-      </div>
-      <div class="progress" id="convProgress" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
-    </section>
-
-    <!-- ── story ── Phòng thu Truyện (logic in story.js, styles in story.css) -->
-    <section class="panel card" id="tab-story" hidden>
-      <div id="storyListView">
-        <div class="out-head">
-          <h2>Truyện của bạn</h2>
-          <span class="muted small" id="storyDir"></span>
-          <span class="spacer"></span>
-          <button class="btn primary small" id="storyNew" type="button">＋ Truyện mới</button>
-        </div>
-        <p class="muted small">Dựng truyện nhiều giọng theo từng đoạn: mỗi đoạn có nhân vật riêng, tạo giọng riêng, sửa đoạn nào chỉ cần tạo lại đoạn đó, rồi xuất thành một file liền mạch.</p>
-        <ul class="list story-projects" id="storyProjects"><li class="muted small">Đang tải…</li></ul>
-      </div>
-
-      <div id="storyEditor" hidden>
-        <div class="story-head">
-          <button class="btn ghost small" id="storyBack" type="button" title="Về danh sách truyện">← Danh sách</button>
-          <input id="storyName" maxlength="120" aria-label="Tên truyện" placeholder="Tên truyện">
-          <span class="muted small" id="storySaved" aria-live="polite"></span>
-          <button class="btn ghost small danger" id="storyDelete" type="button">Xoá truyện</button>
         </div>
 
-        <div class="card-inner story-chars">
-          <div class="label-row"><h3>Nhân vật</h3><span class="muted small">Đổi giọng của nhân vật → các đoạn của nhân vật đó cần tạo lại.</span></div>
-          <ul class="list" id="storyChars"></ul>
-          <div class="toolbar"><button class="btn ghost small" id="storyAddChar" type="button">＋ Thêm nhân vật</button></div>
-        </div>
-
-        <div class="label-row story-segs-head">
-          <h3>Các đoạn</h3>
-          <span class="muted small" id="storySummary"></span>
-        </div>
-        <ol class="story-segs" id="storySegs"></ol>
-        <div class="toolbar">
-          <button class="btn ghost small" id="storyAddSeg" type="button">＋ Thêm đoạn</button>
-          <button class="btn ghost small" id="storyImportToggle" type="button" aria-expanded="false" aria-controls="storyImport">Nhập kịch bản…</button>
-        </div>
-
-        <div class="card-inner story-import" id="storyImport" hidden>
-          <div class="field">
-            <div class="label-row"><label for="storyImportText">Kịch bản (mỗi dòng: <code>Nhân vật: lời thoại</code>; dòng không có tên nhân vật là lời người kể)</label></div>
-            <textarea id="storyImportText" rows="6" placeholder="Người kể: Ngày xửa ngày xưa, ở một ngôi làng nhỏ…&#10;Cô bé: Bà ơi, bà kể chuyện cho cháu nghe đi!&#10;Bà: Được rồi, cháu ngồi xuống đây."></textarea>
-          </div>
-          <div class="toolbar">
-            <div class="segmented" id="storyImportMode">
-              <button type="button" data-v="append" class="on">Thêm vào cuối</button>
-              <button type="button" data-v="replace">Thay toàn bộ đoạn</button>
-            </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Nhân vật &amp; giọng</h2>
             <span class="spacer"></span>
-            <button class="btn ghost small" id="storyImportCancel" type="button">Đóng</button>
-            <button class="btn small primary" id="storyImportGo" type="button">Nhập</button>
+            <label class="conv-lang" id="convLangWrap" hidden><span class="muted small">Ngôn ngữ</span><select id="convLang" class="small-select" aria-label="Ngôn ngữ của kịch bản"></select></label>
+            <button class="btn ghost small" id="convScan" type="button"><svg class="ic"><use href="#i-refresh"/></svg>Quét nhân vật</button>
+          </div>
+          <div class="speakers" id="convSpeakers"></div>
+          <div class="slider-field" id="convSilenceWrap"></div>
+          <div class="actions action-bar">
+            <button class="btn primary big" id="convGo" type="button" disabled><svg class="ic"><use href="#i-play"/></svg>Tạo hội thoại</button>
+            <button class="btn ghost danger-soft" id="convStop" type="button" hidden><svg class="ic"><use href="#i-stop"/></svg>Dừng</button>
+            <span class="spacer"></span>
+            <button class="btn ghost small" id="convToStory" type="button" title="Tạo một dự án trong Phòng thu Truyện: sửa và tạo lại từng lượt thoại, lưu lâu dài">Sửa từng lượt trong Phòng thu Truyện<svg class="ic"><use href="#i-arrow-right"/></svg></button>
+          </div>
+          <div class="progress" id="convProgress" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
+        </div>
+      </section>
+
+      <!-- ── story ── Phòng thu Truyện (logic in story.js, styles in story.css) -->
+      <section class="panel" id="tab-story" hidden>
+        <div id="storyListView">
+          <header class="page-head">
+            <div><h1>Truyện</h1><p>Dựng truyện nhiều giọng theo từng đoạn: sửa đoạn nào chỉ cần tạo lại đoạn đó, rồi xuất thành một file liền mạch.</p></div>
+            <button class="btn primary" id="storyNew" type="button"><svg class="ic"><use href="#i-plus"/></svg>Truyện mới</button>
+          </header>
+          <div class="card">
+            <div class="card-head"><h2>Truyện của bạn</h2><span class="muted small path" id="storyDir"></span></div>
+            <ul class="list story-projects" id="storyProjects"><li class="muted small">Đang tải…</li></ul>
           </div>
         </div>
 
-        <div class="field slider-field" id="storyPauseWrap"></div>
-        <div class="actions">
-          <button class="btn primary big" id="storyGenAll" type="button">Tạo các đoạn chưa có</button>
-          <button class="btn" id="storyExport" type="button">Xuất file truyện</button>
-          <button class="btn ghost" id="storyStop" type="button" hidden>■ Dừng</button>
-        </div>
-        <div class="hint" id="storyExportHint"></div>
-        <div class="progress" id="storyProgress" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
-      </div>
-    </section>
-    <!-- ── /story ── -->
+        <div id="storyEditor" hidden>
+          <div class="story-head">
+            <button class="btn ghost small" id="storyBack" type="button" title="Về danh sách truyện"><svg class="ic"><use href="#i-arrow-left"/></svg>Danh sách</button>
+            <input id="storyName" maxlength="120" aria-label="Tên truyện" placeholder="Tên truyện">
+            <span class="muted small" id="storySaved" aria-live="polite"></span>
+            <button class="btn ghost small danger" id="storyDelete" type="button">Xoá truyện</button>
+          </div>
 
-    <!-- ── SRT ────────────────────────────────────────────────── -->
-    <section class="panel card" id="tab-srt" hidden>
-      <div class="field">
-        <label>File phụ đề tiếng Việt (.srt)</label>
-        <div class="toolbar">
-          <label class="btn ghost small file-btn">Chọn file .srt…<input type="file" id="srtFile" accept=".srt,text/plain" hidden></label>
-          <button class="btn ghost small" id="srtSample" type="button">Dùng file mẫu</button>
-          <span class="muted small" id="srtInfo">Chưa có file.</span>
-        </div>
-        <div class="cue-table" id="srtCues" hidden></div>
-      </div>
-      <div class="row-2">
-        <div class="field">
-          <label for="srtVoice">Giọng đọc</label>
-          <select id="srtVoice" class="voice-select"></select>
-        </div>
-        <div class="field">
-          <label class="check"><input type="checkbox" id="srtKeep" checked> Giữ đúng mốc thời gian</label>
-          <div class="hint">Câu nào đọc dài hơn khung thì câu sau lùi lại, không đè lên nhau. Bỏ chọn để nối liền các câu.</div>
-          <div class="slider-field" id="srtGapWrap" hidden></div>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn primary big" id="srtGo" type="button" disabled>Tạo audio từ SRT</button>
-        <button class="btn ghost" id="srtStop" type="button" hidden>■ Dừng</button>
-      </div>
-      <div class="progress" id="srtProgress" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
-    </section>
+          <div class="card story-chars">
+            <div class="card-head"><h2>Nhân vật</h2><span class="muted small">Đổi giọng của nhân vật → các đoạn của nhân vật đó cần tạo lại.</span></div>
+            <ul class="list" id="storyChars"></ul>
+            <div class="toolbar"><button class="btn ghost small" id="storyAddChar" type="button"><svg class="ic"><use href="#i-plus"/></svg>Thêm nhân vật</button></div>
+          </div>
 
-    <!-- ── Từ điển phát âm (lexicon.js) ───────────────────────────── -->
-    <section class="panel card" id="tab-lex" hidden>
-      <div class="out-head">
-        <h2>Từ điển phát âm</h2>
-        <span class="muted small" id="lexCount"></span>
-        <span class="spacer"></span>
-        <span class="muted small" id="lexSaved" aria-live="polite"></span>
-        <label class="check small"><input type="checkbox" id="lexEnabled" checked> Đang bật</label>
-      </div>
-      <p class="muted small">Dạy app cách đọc tên riêng, thuật ngữ, chữ viết tắt. Luật được áp tự động cho mọi lượt tạo giọng (đọc văn bản, podcast, truyện, SRT), trước khi văn bản tới mô hình. Số, đơn vị, công thức toán và hoá học thì mô hình đã tự đọc đúng.</p>
-      <div class="toolbar">
-        <button class="btn small" id="lexAdd" type="button">＋ Thêm luật</button>
-        <label class="btn ghost small file-btn">Nhập từ tệp…<input type="file" id="lexImport" accept=".txt,.csv,.tsv,text/plain" hidden></label>
-        <button class="btn ghost small" id="lexExport" type="button">Xuất ra tệp</button>
-        <span class="spacer"></span>
-        <input id="lexFilter" class="lex-filter" placeholder="Lọc luật…" aria-label="Lọc luật">
-      </div>
-      <div class="lex-table" id="lexTable">
-        <table>
-          <thead><tr><th>Từ / cách viết</th><th>Đọc là</th><th title="Chỉ thay khi là một từ trọn vẹn">Cả từ</th><th title="Phân biệt chữ hoa / chữ thường">Hoa/thường</th><th title="Bật / tắt luật này">Bật</th><th></th></tr></thead>
-          <tbody id="lexRows"></tbody>
-        </table>
-        <div class="muted small lex-empty" id="lexEmpty">Chưa có luật nào. Bấm “Thêm luật”, ví dụ: <code>VieNeu</code> → <code>Vi Neu</code>.</div>
-      </div>
-      <div class="card-inner lex-try">
-        <div class="label-row"><label for="lexTry">Nghe thử cách đọc</label><span class="muted small">dùng các luật đang sửa (kể cả chưa lưu)</span></div>
-        <textarea id="lexTry" rows="2">Bản VieNeu 2.0 chạy trên GPU, nhanh hơn 5 km/h.</textarea>
-        <div class="lex-out"><span class="muted small">Sau từ điển:</span> <span id="lexTryOut"></span></div>
-        <div class="lex-out"><span class="muted small">Mô hình đọc là:</span> <span id="lexTrySpoken" class="muted"></span></div>
-        <div class="toolbar"><select id="lexVoice" class="voice-select lex-voice"></select><button class="btn ghost small" id="lexSpeak" type="button">▶ Nghe thử</button></div>
-      </div>
-      <details class="lex-help">
-        <summary class="small">Cách hoạt động &amp; định dạng tệp nhập</summary>
-        <ul class="small muted">
-          <li>Luật dài hơn được ưu tiên: có cả “km” và “km/h” thì “5 km/h” đọc theo luật “km/h”.</li>
-          <li>Kết quả thay thế không bị quét lại, nên luật không bao giờ tự lặp hay gọi luật khác.</li>
-          <li>“Cả từ”: “AI” không đổi chữ “AI” nằm trong “AIR”. “Hoa/thường”: bật thì “AI” khác “ai”.</li>
-          <li>Tệp .txt hoặc .csv, mỗi dòng <code>từ = cách đọc</code> (cũng nhận dấu tab, dấu phẩy hoặc <code>→</code>). Dòng bắt đầu bằng <code>#</code> bị bỏ qua. Luật nhập vào đè lên luật cũ trùng từ.</li>
-          <li>Lưu tại <code id="lexPath">~/.vieneu/studio/lexicon.json</code>.</li>
-        </ul>
-      </details>
-    </section>
+          <div class="card">
+            <div class="card-head story-segs-head">
+              <h2>Các đoạn</h2>
+              <span class="muted small" id="storySummary"></span>
+            </div>
+            <ol class="story-segs" id="storySegs"></ol>
+            <div class="toolbar">
+              <button class="btn ghost small" id="storyAddSeg" type="button"><svg class="ic"><use href="#i-plus"/></svg>Thêm đoạn</button>
+              <button class="btn ghost small" id="storyImportToggle" type="button" aria-expanded="false" aria-controls="storyImport"><svg class="ic"><use href="#i-file"/></svg>Nhập kịch bản…</button>
+            </div>
 
-    <!-- ── Kết quả ─────────────────────────────────────────────── -->
+            <div class="card-inner story-import" id="storyImport" hidden>
+              <div class="field">
+                <label for="storyImportText">Kịch bản (mỗi dòng: <code>Nhân vật: lời thoại</code>; dòng không có tên nhân vật là lời người kể)</label>
+                <textarea id="storyImportText" rows="6" placeholder="Người kể: Ngày xửa ngày xưa, ở một ngôi làng nhỏ…&#10;Cô bé: Bà ơi, bà kể chuyện cho cháu nghe đi!&#10;Bà: Được rồi, cháu ngồi xuống đây."></textarea>
+              </div>
+              <div class="toolbar">
+                <div class="segmented" id="storyImportMode">
+                  <button type="button" data-v="append" class="on">Thêm vào cuối</button>
+                  <button type="button" data-v="replace">Thay toàn bộ đoạn</button>
+                </div>
+                <span class="spacer"></span>
+                <button class="btn ghost small" id="storyImportCancel" type="button">Đóng</button>
+                <button class="btn small primary" id="storyImportGo" type="button">Nhập</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="slider-field" id="storyPauseWrap"></div>
+            <div class="actions action-bar">
+              <button class="btn primary big" id="storyGenAll" type="button">Tạo các đoạn chưa có</button>
+              <button class="btn" id="storyExport" type="button">Xuất file truyện</button>
+              <button class="btn ghost danger-soft" id="storyStop" type="button" hidden>■ Dừng</button>
+            </div>
+            <div class="hint" id="storyExportHint"></div>
+            <div class="progress" id="storyProgress" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
+          </div>
+        </div>
+      </section>
+      <!-- ── /story ── -->
+
+      <!-- ── SRT ────────────────────────────────────────────────── -->
+      <section class="panel" id="tab-srt" hidden>
+        <header class="page-head">
+          <div><h1>Phụ đề SRT</h1><p>Biến file phụ đề tiếng Việt thành bản lồng tiếng khớp đúng mốc thời gian.</p></div>
+        </header>
+
+        <div class="card">
+          <div class="card-head"><h2>File phụ đề</h2></div>
+          <div class="file-row">
+            <span class="file-ic"><svg class="ic"><use href="#i-cc"/></svg></span>
+            <span class="small grow" id="srtInfo">Chưa có file.</span>
+            <button class="btn ghost small" id="srtSample" type="button">Dùng file mẫu</button>
+            <label class="btn small file-btn"><svg class="ic"><use href="#i-upload"/></svg>Chọn file .srt<input type="file" id="srtFile" accept=".srt,text/plain" hidden></label>
+          </div>
+          <div class="cue-table" id="srtCues" hidden></div>
+        </div>
+
+        <div class="card">
+          <div class="row-2">
+            <div class="field">
+              <label for="srtVoice">Giọng đọc</label>
+              <select id="srtVoice" class="voice-select" data-picker></select>
+            </div>
+            <div class="field">
+              <label>Thời gian</label>
+              <label class="switch"><input type="checkbox" id="srtKeep" checked><span class="sw"></span><span>Giữ đúng mốc thời gian</span></label>
+              <div class="hint">Câu nào đọc dài hơn khung thì câu sau lùi lại, không đè lên nhau. Tắt để nối liền các câu.</div>
+              <div class="slider-field" id="srtGapWrap" hidden></div>
+            </div>
+          </div>
+          <div class="actions action-bar">
+            <button class="btn primary big" id="srtGo" type="button" disabled><svg class="ic"><use href="#i-play"/></svg>Tạo audio từ SRT</button>
+            <button class="btn ghost danger-soft" id="srtStop" type="button" hidden><svg class="ic"><use href="#i-stop"/></svg>Dừng</button>
+          </div>
+          <div class="progress" id="srtProgress" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
+        </div>
+      </section>
+
+      <!-- ── Từ điển phát âm (lexicon.js) ───────────────────────────── -->
+      <section class="panel" id="tab-lex" hidden>
+        <header class="page-head">
+          <div><h1>Từ điển phát âm</h1><p>Dạy app cách đọc tên riêng, thuật ngữ, chữ viết tắt. Luật áp dụng cho mọi lượt tạo giọng.</p></div>
+          <label class="switch"><input type="checkbox" id="lexEnabled" checked><span class="sw"></span><span>Đang bật</span></label>
+        </header>
+
+        <div class="card">
+          <div class="toolbar lex-toolbar">
+            <button class="btn small primary" id="lexAdd" type="button"><svg class="ic"><use href="#i-plus"/></svg>Thêm luật</button>
+            <label class="btn ghost small file-btn"><svg class="ic"><use href="#i-upload"/></svg>Nhập<input type="file" id="lexImport" accept=".txt,.csv,.tsv,text/plain" hidden></label>
+            <button class="btn ghost small" id="lexExport" type="button"><svg class="ic"><use href="#i-download"/></svg>Xuất</button>
+            <span class="spacer"></span>
+            <span class="muted small" id="lexSaved" aria-live="polite"></span>
+            <div class="search-box"><svg class="ic"><use href="#i-search"/></svg><input id="lexFilter" class="lex-filter" placeholder="Lọc luật…" aria-label="Lọc luật"></div>
+          </div>
+          <div class="lex-table" id="lexTable">
+            <table>
+              <thead><tr><th>Từ / cách viết</th><th>Đọc là</th><th title="Chỉ thay khi là một từ trọn vẹn">Cả từ</th><th title="Phân biệt chữ hoa / chữ thường">Hoa/thường</th><th title="Bật / tắt luật này">Bật</th><th></th></tr></thead>
+              <tbody id="lexRows"></tbody>
+            </table>
+            <div class="muted small lex-empty" id="lexEmpty">Chưa có luật nào. Bấm “Thêm luật”, ví dụ: <code>VieNeu</code> → <code>Vi Neu</code>.</div>
+          </div>
+          <div class="muted small lex-count" id="lexCount"></div>
+        </div>
+
+        <div class="card lex-try">
+          <div class="card-head"><h2>Nghe thử cách đọc</h2><span class="muted small">dùng các luật đang sửa (kể cả chưa lưu)</span></div>
+          <textarea id="lexTry" rows="2">Bản VieNeu 2.0 chạy trên GPU, nhanh hơn 5 km/h.</textarea>
+          <div class="lex-out"><span class="lex-k">Sau từ điển</span><span id="lexTryOut"></span></div>
+          <div class="lex-out" data-feature="normalize"><span class="lex-k">Mô hình đọc là</span><span id="lexTrySpoken" class="muted"></span></div>
+          <div class="toolbar"><select id="lexVoice" class="voice-select lex-voice" aria-label="Giọng nghe thử"></select><button class="btn ghost small" id="lexSpeak" type="button"><svg class="ic"><use href="#i-play"/></svg>Nghe thử</button></div>
+        </div>
+
+        <details class="card lex-help">
+          <summary>Cách hoạt động &amp; định dạng tệp nhập</summary>
+          <ul class="small muted">
+            <li>Luật dài hơn được ưu tiên: có cả “km” và “km/h” thì “5 km/h” đọc theo luật “km/h”.</li>
+            <li>Kết quả thay thế không bị quét lại, nên luật không bao giờ tự lặp hay gọi luật khác.</li>
+            <li>“Cả từ”: “AI” không đổi chữ “AI” nằm trong “AIR”. “Hoa/thường”: bật thì “AI” khác “ai”.</li>
+            <li>Tệp .txt hoặc .csv, mỗi dòng <code>từ = cách đọc</code> (cũng nhận dấu tab, dấu phẩy hoặc <code>→</code>). Dòng bắt đầu bằng <code>#</code> bị bỏ qua. Luật nhập vào đè lên luật cũ trùng từ.</li>
+            <li>Số, đơn vị, công thức toán và hoá học thì mô hình đã tự đọc đúng.</li>
+            <li>Lưu tại <code id="lexPath">~/.vstudio/lexicon.json</code>.</li>
+          </ul>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── Right rail: result + library ───────────────────────────── -->
+  <aside class="rail">
     <section class="card output" id="output">
-      <div class="out-head">
+      <div class="card-head">
         <h2>Kết quả</h2>
-        <span class="muted small" id="outMeta"></span>
+        <span class="muted small out-meta" id="outMeta"></span>
         <span class="spacer"></span>
-        <button class="btn ghost small" id="outDownload" type="button" disabled>Tải xuống</button>
+        <button class="btn small" id="outDownload" type="button" disabled title="Tải xuống"><svg class="ic"><use href="#i-download"/></svg>Tải xuống</button>
       </div>
       <div class="wave-wrap">
-        <canvas id="wave" height="96"></canvas>
-        <div class="wave-empty muted" id="waveEmpty">Âm thanh tạo ra sẽ hiển thị ở đây.</div>
+        <canvas id="wave" height="88"></canvas>
+        <div class="wave-empty" id="waveEmpty"><svg class="ic"><use href="#i-wave"/></svg><span>Âm thanh tạo ra sẽ hiển thị ở đây</span></div>
       </div>
-      <audio id="outAudio" controls></audio>
+      <div class="player">
+        <button class="play-btn" id="playBtn" type="button" title="Phát / tạm dừng (Space)" aria-label="Phát" disabled>
+          <svg class="ic ic-play"><use href="#i-play"/></svg><svg class="ic ic-pause"><use href="#i-pause"/></svg>
+        </button>
+        <span class="tnum player-time" id="playTime">0:00 <span class="muted">/ 0:00</span></span>
+        <span class="spacer"></span>
+        <button class="btn ghost small speed-btn" id="speedBtn" type="button" title="Tốc độ phát">1×</button>
+      </div>
+      <audio id="outAudio" hidden></audio>
       <div class="stats" id="outStats"></div>
       <div class="status small" id="outStatus"></div>
 
       <details class="music-box" id="musicBox">
-        <summary><span class="music-title">🎵 Nhạc nền</span><span class="muted small">trộn nhạc vào bản đang mở, tự giảm nhạc khi có giọng</span></summary>
-        <div class="music-row">
-          <select id="musicTrack" aria-label="Bản nhạc nền"></select>
-          <button class="btn ghost small" id="musicPlay" type="button">▶ Nghe nhạc</button>
-          <label class="btn ghost small file-btn">＋ Thêm nhạc của bạn…<input type="file" id="musicFile" accept="audio/*,.mp3,.wav,.flac,.ogg" hidden></label>
-          <button class="btn ghost small danger" id="musicDel" type="button" hidden>Xoá bản này</button>
-        </div>
-        <div class="muted small" id="musicDesc"></div>
-        <div class="music-params">
-          <div id="musicVolWrap"></div>
-          <div id="musicIntroWrap"></div>
-          <div id="musicOutroWrap"></div>
-        </div>
-        <div class="actions">
-          <label class="check small"><input type="checkbox" id="musicDuck" checked> Tự giảm nhạc khi có giọng (ducking)</label>
-          <span class="spacer"></span>
-          <button class="btn small primary" id="musicMix" type="button" disabled>Trộn nhạc nền</button>
+        <summary><span class="music-ic"><svg class="ic"><use href="#i-music"/></svg></span><span class="grow"><span class="music-title">Nhạc nền</span><span class="muted small">Trộn nhạc vào bản đang mở, tự giảm khi có giọng</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+        <div class="music-body">
+          <div class="music-row">
+            <select id="musicTrack" aria-label="Bản nhạc nền"></select>
+            <button class="btn ghost small" id="musicPlay" type="button">▶ Nghe nhạc</button>
+          </div>
+          <div class="muted small" id="musicDesc"></div>
+          <div class="music-row">
+            <label class="btn ghost small file-btn"><svg class="ic"><use href="#i-plus"/></svg>Thêm nhạc của bạn<input type="file" id="musicFile" accept="audio/*,.mp3,.wav,.flac,.ogg" hidden></label>
+            <button class="btn ghost small danger" id="musicDel" type="button" hidden>Xoá bản này</button>
+          </div>
+          <div class="music-params">
+            <div id="musicVolWrap"></div>
+            <div id="musicIntroWrap"></div>
+            <div id="musicOutroWrap"></div>
+          </div>
+          <div class="actions">
+            <label class="switch small"><input type="checkbox" id="musicDuck" checked><span class="sw"></span><span>Tự giảm nhạc khi có giọng</span></label>
+            <span class="spacer"></span>
+            <button class="btn small primary" id="musicMix" type="button" disabled>Trộn nhạc nền</button>
+          </div>
         </div>
         <audio id="musicAudio" preload="none" hidden></audio>
       </details>
     </section>
 
-    <section class="card" id="libCard">
-      <div class="out-head"><h2>Thư viện</h2><span class="muted small" id="libStats"></span><span class="spacer"></span>
-        <label class="check small" title="Tự lưu mọi bản tạo ra vào thư viện trên máy"><input type="checkbox" id="libAutosave" checked> Tự lưu</label>
-        <button class="btn ghost small danger" id="histClear" type="button">Xoá hết</button></div>
+    <section class="card library" id="libCard">
+      <div class="card-head">
+        <h2>Thư viện</h2>
+        <span class="spacer"></span>
+        <label class="switch small" title="Tự lưu mọi bản tạo ra vào thư viện trên máy"><input type="checkbox" id="libAutosave" checked><span class="sw"></span><span>Tự lưu</span></label>
+      </div>
       <div class="lib-filter">
-        <input id="libSearch" type="search" placeholder="Tìm theo nội dung, giọng, tên…" aria-label="Tìm trong thư viện">
-        <select id="libKind" aria-label="Lọc theo loại"><option value="">Tất cả loại</option></select>
+        <div class="search-box grow"><svg class="ic"><use href="#i-search"/></svg><input id="libSearch" type="search" placeholder="Tìm trong thư viện…" aria-label="Tìm trong thư viện"></div>
+        <select id="libKind" aria-label="Lọc theo loại"><option value="">Tất cả</option></select>
       </div>
       <ul class="list history" id="history"><li class="muted small">Chưa có bản nào.</li></ul>
-      <div class="actions lib-foot"><button class="btn ghost small" id="libMore" type="button" hidden>Tải thêm</button>
-        <span class="spacer"></span><span class="muted small">Nháy đúp vào tên để đổi tên · lưu tại <code id="libDir">~/.vieneu/studio/library</code></span></div>
+      <button class="btn ghost small lib-more" id="libMore" type="button" hidden>Tải thêm</button>
+      <div class="lib-foot">
+        <span class="muted small tnum" id="libStats"></span>
+        <span class="spacer"></span>
+        <button class="btn ghost small danger" id="histClear" type="button">Xoá hết</button>
+      </div>
+      <div class="muted lib-path">Nháy đúp vào tên để đổi tên · <code id="libDir">~/.vstudio/library</code></div>
     </section>
-  </main>
-
-  <aside class="settings card" id="settings">
-    <div class="out-head"><h2>Thiết lập</h2><span class="spacer"></span>
-      <button class="btn ghost small" id="resetParams" type="button" title="Đưa về mặc định của mô hình">Mặc định</button></div>
-    <p class="muted small" id="settingsNote"></p>
-    <div id="paramGroups"></div>
   </aside>
 </div>
+
+<!-- ── Settings drawer ───────────────────────────────────────────── -->
+<div class="drawer-veil" id="drawerVeil" hidden></div>
+<aside class="settings drawer" id="settings" aria-label="Tinh chỉnh giọng" aria-hidden="true">
+  <div class="drawer-head">
+    <div><h2>Tinh chỉnh giọng</h2><p class="muted small" id="settingsNote"></p></div>
+    <button class="icon-btn" id="settingsClose" type="button" title="Đóng" aria-label="Đóng"><svg class="ic"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="drawer-body" id="paramGroups"></div>
+  <div class="drawer-foot">
+    <button class="btn ghost small" id="resetParams" type="button" title="Đưa về mặc định của mô hình"><svg class="ic"><use href="#i-refresh"/></svg>Về mặc định</button>
+    <span class="spacer"></span>
+    <span class="muted small">Tự lưu theo từng mô hình</span>
+  </div>
+</aside>
 
 <!-- ── Model dialog ──────────────────────────────────────────── -->
 <dialog id="modelDialog">
   <form method="dialog" class="dlg">
-    <div class="out-head"><h2>Mô hình</h2><span class="spacer"></span><button class="icon-btn" value="close" title="Đóng">✕</button></div>
-    <div class="mode-cards">
-      <label class="mode-card"><input type="radio" name="mode" value="v3turbo" checked>
-        <strong>VieNeu-TTS v3 Turbo</strong>
-        <span class="small muted">48 kHz · 25 giọng có sẵn · nhân bản giọng · streaming theo frame. Khuyến nghị.</span></label>
-      <label class="mode-card"><input type="radio" name="mode" value="v3nano">
-        <strong>VieNeu-TTS v3 Nano <em>preview</em></strong>
-        <span class="small muted">24 kHz · 11 giọng · nhanh gấp ~3 lần trên CPU yếu, chất lượng thấp hơn (nhất là tiếng Anh).</span></label>
+    <div class="dlg-head"><div><h2>Ngôn ngữ &amp; mô hình</h2><p class="muted small">Chọn ngôn ngữ, rồi chọn mô hình để xem và chỉnh toàn bộ cấu hình. Mọi mô hình đều chạy trên máy của bạn.</p></div><button class="icon-btn" value="close" title="Đóng" aria-label="Đóng"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="dlg-split">
+      <nav class="lang-nav" id="langNav" aria-label="Ngôn ngữ"></nav>
+      <div class="dlg-main">
+        <div id="langPane">
+          <div class="lang-head"><span class="lang-tag big" id="langTag">VI</span><div><h3 id="langTitle">Tiếng Việt</h3><p class="muted small" id="langDesc"></p></div></div>
+          <div class="model-list" id="modelList"></div>
+          <div class="sysinfo small muted" id="sysInfo"></div>
+          <div class="status small" id="loadStatus"></div>
+        </div>
+      </div>
     </div>
-    <div class="grid-2" data-for="v3turbo">
-      <div class="field"><label>Backend</label><select name="backend">
-        <option value="auto">Tự động (GPU → PyTorch, CPU → ONNX)</option><option value="onnx">ONNX (CPU, không cần torch)</option><option value="pytorch">PyTorch</option></select></div>
-      <div class="field"><label>Thiết bị</label><select name="device">
-        <option value="auto">Tự động</option><option value="cpu">CPU</option><option value="cuda">CUDA (GPU NVIDIA)</option></select></div>
-      <div class="field"><label>Độ chính xác (CPU)</label><select name="precision">
-        <option value="fp32">fp32 — chất lượng tối đa</option><option value="int8">int8 — nhanh ~1,6×, cần CPU có VNNI</option></select>
-        <div class="hint">int8 có thể méo tiếng trên CPU không có AVX-512 VNNI / AVX-VNNI (kể cả Apple Silicon).</div></div>
-      <div class="field"><label>Số luồng CPU</label><input name="threads" type="number" min="0" max="64" value="0"><div class="hint">0 = tự động (~số nhân thật, tối đa 8).</div></div>
-      <div class="field"><label>Batch tối đa (GPU)</label><input name="max_batch_size" type="number" min="1" max="128" value="32"></div>
-      <div class="field"><label>Số luồng stream (GPU)</label><input name="max_streams" type="number" min="1" max="64" value="16"></div>
-      <div class="field span-2"><label>Backbone (tuỳ chọn)</label><input name="backbone_repo" placeholder="pnnbao-ump/VieNeu-TTS-v3-Turbo — hoặc thư mục mô hình đã fine-tune (LoRA merged)"></div>
-      <div class="field span-2"><label>Thư mục ONNX cục bộ (tuỳ chọn)</label><input name="onnx_dir_t" placeholder="Để trống để tải từ Hugging Face"></div>
-    </div>
-    <div class="grid-2" data-for="v3nano" hidden>
-      <div class="field"><label>Số luồng CPU</label><input name="threads_n" type="number" min="0" max="64" value="0"></div>
-      <div class="field"><label>Số bước mặc định</label><input name="steps" type="number" min="1" max="64" value="16"></div>
-      <div class="field"><label>CFG mặc định</label><input name="cfg" type="number" min="0" max="10" step="0.1" value="3"></div>
-      <div class="field"><label>Thư mục ONNX cục bộ (tuỳ chọn)</label><input name="onnx_dir_n" placeholder="Để trống để tải từ Hugging Face"></div>
-    </div>
-    <div class="sysinfo small muted" id="sysInfo"></div>
-    <div class="status small" id="loadStatus"></div>
-    <div class="actions end">
+    <div class="dlg-foot">
+      <span class="muted small grow" id="dlgPick"></span>
       <button class="btn ghost" value="close">Đóng</button>
       <button class="btn primary" id="loadBtn" type="button">Tải mô hình</button>
     </div>
 
-    <div class="group upd">
-      <h3>Cập nhật</h3>
-      <div class="small" id="updInfo">Chưa kiểm tra.</div>
-      <p class="hint">SDK <code>vieneu</code> được cập nhật từ PyPI. Mô hình tự lấy bản mới nhất từ Hugging Face mỗi lần nạp (khi có mạng), không cần cập nhật riêng.</p>
-      <label class="check"><input type="checkbox" id="updAutoCheck"> Tự kiểm tra bản mới khi mở app</label>
-      <label class="check"><input type="checkbox" id="updAutoInstall"> Tự động cài bản mới khi có (áp dụng sau khi khởi động lại app)</label>
-      <div class="toolbar">
-        <button class="btn ghost small" id="updCheck" type="button">Kiểm tra ngay</button>
-        <button class="btn small" id="updInstall" type="button" hidden>Cập nhật</button>
-        <button class="btn small primary" id="updRestart" type="button" hidden>Khởi động lại app</button>
+    <!-- load-time options of each model; app.js moves the open model's grid into its card -->
+    <div id="cfgStore" hidden>
+      <div class="grid-2 cfg-grid" data-for="kokoro">
+        <div class="field"><label>Độ chính xác</label><select name="precision_k">
+          <option value="fp32">fp32 — chất lượng tối đa (~325 MB)</option><option value="int8">int8 — nhỏ gọn (~92 MB), nhanh hơn</option></select></div>
+        <div class="field"><label>Số luồng CPU</label><input name="threads_k" type="number" min="0" max="64" value="0"><div class="hint">0 = tự động.</div></div>
+        <div class="field span-2"><label>Thư mục mô hình cục bộ (tuỳ chọn)</label><input name="model_dir_k" placeholder="Để trống để tự tải về ~/.vstudio/models/kokoro"></div>
       </div>
+      <div class="grid-2 cfg-grid" data-for="v3turbo">
+        <div class="field"><label>Backend</label><select name="backend">
+          <option value="auto">Tự động (GPU → PyTorch, CPU → ONNX)</option><option value="onnx">ONNX (CPU, không cần torch)</option><option value="pytorch">PyTorch</option></select></div>
+        <div class="field"><label>Thiết bị</label><select name="device">
+          <option value="auto">Tự động</option><option value="cpu">CPU</option><option value="cuda">CUDA (GPU NVIDIA)</option></select></div>
+        <div class="field"><label>Độ chính xác (CPU)</label><select name="precision">
+          <option value="fp32">fp32 — chất lượng tối đa</option><option value="int8">int8 — nhanh ~1,6×, cần CPU có VNNI</option></select>
+          <div class="hint">int8 có thể méo tiếng trên CPU không có AVX-512 VNNI / AVX-VNNI (kể cả Apple Silicon).</div></div>
+        <div class="field"><label>Số luồng CPU</label><input name="threads" type="number" min="0" max="64" value="0"><div class="hint">0 = tự động (~số nhân thật, tối đa 8).</div></div>
+        <div class="field"><label>Batch tối đa (GPU)</label><input name="max_batch_size" type="number" min="1" max="128" value="32"></div>
+        <div class="field"><label>Số luồng stream (GPU)</label><input name="max_streams" type="number" min="1" max="64" value="16"></div>
+        <div class="field span-2"><label>Backbone (tuỳ chọn)</label><input name="backbone_repo" placeholder="pnnbao-ump/VieNeu-TTS-v3-Turbo — hoặc thư mục mô hình đã fine-tune (LoRA merged)"></div>
+        <div class="field span-2"><label>Thư mục ONNX cục bộ (tuỳ chọn)</label><input name="onnx_dir_t" placeholder="Để trống để tải từ Hugging Face"></div>
+      </div>
+      <div class="grid-2 cfg-grid" data-for="v3nano">
+        <div class="field"><label>Số luồng CPU</label><input name="threads_n" type="number" min="0" max="64" value="0"></div>
+        <div class="field"><label>Số bước mặc định</label><input name="steps" type="number" min="1" max="64" value="16"></div>
+        <div class="field"><label>CFG mặc định</label><input name="cfg" type="number" min="0" max="10" step="0.1" value="3"></div>
+        <div class="field"><label>Thư mục ONNX cục bộ (tuỳ chọn)</label><input name="onnx_dir_n" placeholder="Để trống để tải từ Hugging Face"></div>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- ── App update dialog (updater.py: GitHub releases of V Studio) ───────── -->
+<dialog id="updDialog">
+  <form method="dialog" class="dlg upd-dlg">
+    <div class="dlg-head"><div><h2>Cập nhật V Studio</h2><p class="muted small">Bản mới lấy từ GitHub Releases của <a id="updRepo" href="https://github.com/HieuDevs/v-studio/releases" target="_blank" rel="noopener">HieuDevs/v-studio</a> — cập nhật cả app lẫn các mô hình đi kèm.</p></div><button class="icon-btn" value="close" title="Đóng" aria-label="Đóng"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="dlg-main">
+      <div class="upd-versions">
+        <div class="upd-ver"><small>Đang dùng</small><b id="updCur">—</b></div>
+        <svg class="ic"><use href="#i-arrow-right"/></svg>
+        <div class="upd-ver" id="updLatestBox"><small>Mới nhất</small><b id="updLatest">—</b></div>
+      </div>
+      <div class="status small" id="updInfo">Chưa kiểm tra.</div>
+      <div class="hint" id="updHow"></div>
+      <div class="upd-notes" id="updNotes" hidden></div>
+      <div class="progress" id="updProg" hidden><div class="bar"><i></i></div><span class="small muted"></span></div>
       <pre class="log" id="updLog" hidden></pre>
+      <label class="switch small"><input type="checkbox" id="updAutoCheck"><span class="sw"></span><span>Tự kiểm tra bản mới khi mở app</span></label>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn ghost small" id="updCheck" type="button"><svg class="ic"><use href="#i-refresh"/></svg>Kiểm tra ngay</button>
+      <span class="spacer"></span>
+      <a class="btn ghost" id="updPage" href="https://github.com/HieuDevs/v-studio/releases" target="_blank" rel="noopener">Trang phát hành</a>
+      <button class="btn primary" id="updInstall" type="button" hidden>Cập nhật</button>
+      <button class="btn primary" id="updRestart" type="button" hidden>Khởi động lại</button>
+      <button class="btn primary" id="updQuit" type="button" hidden>Đóng V Studio</button>
     </div>
   </form>
 </dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="samples.js"></script>
 <script src="app.js"></script>
 <!-- ── story ── --><script src="story.js"></script><!-- ── /story ── -->
 <script src="lexicon.js"></script>
 <script src="music.js"></script>
+<script src="shell.js"></script>
 </body>
 </html>

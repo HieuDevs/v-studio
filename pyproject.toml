@@ -5,10 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "v-studio"
 version = "1.1.0"
-description = "Desktop app for VieNeu-TTS (Vietnamese text-to-speech)"
+description = "Local, multilingual text-to-speech desktop app (VieNeu-TTS for Vietnamese, Kokoro-82M for 8 more languages)"
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "vieneu>=3.8",
+    "kokoro-onnx>=0.6",
     "onnxruntime>=1.20,<1.25",
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -23,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 watermark = ["vieneu[watermark]"]
 cuda = ["vieneu[cuda]"]
+ja = ["pyopenjtalk-plus>=0.4"]   # kanji → kana for Japanese with Kokoro (~300 MB)
 
 [project.scripts]
 v-studio = "v_studio.__main__:main"

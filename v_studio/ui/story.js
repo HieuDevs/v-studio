@@ -10,7 +10,7 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = V.esc, fmtSec = V.fmtSec;
 
-  const COLORS = ['#0d8a68', '#3b82f6', '#d97706', '#c2413b', '#8b5cf6', '#db2777', '#0891b2', '#65a30d'];
+  const COLORS = ['#5b5bd6', '#0891b2', '#d97706', '#d23a4a', '#16a34a', '#db2777', '#0d9488', '#7c3aed'];
   const NARRATOR = 'Người kể';
   const NARRATOR_RE = /^(người kể|người dẫn|người dẫn truyện|dẫn truyện|lời kể|narrator)$/i;
   const LABEL = { none: 'Chưa tạo', doing: 'Đang tạo…', done: 'Đã tạo', error: 'Lỗi', stale: 'Đã sửa – cần tạo lại', empty: 'Trống' };

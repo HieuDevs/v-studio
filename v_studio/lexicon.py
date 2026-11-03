@@ -1,7 +1,7 @@
 """Pronunciation dictionary ("Từ điển phát âm"): user rules that rewrite the
 text before it reaches the engine — proper names, jargon, abbreviations.
 
-Rules live in ``~/.vieneu/studio/lexicon.json`` and are applied by /api/tts, so
+Rules live in ``~/.vstudio/lexicon.json`` and are applied by /api/tts, so
 every mode (read, podcast, story, SRT) uses them.
 
     GET  /api/lexicon            {enabled, rules, path, max}
@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
-from .engine import voices_home
+from .engine import app_home
 
 router = APIRouter(prefix="/api/lexicon")
 
@@ -34,7 +34,7 @@ MAX_LEN = 200
 
 
 def lexicon_path() -> Path:
-    return voices_home() / "studio" / "lexicon.json"
+    return app_home() / "lexicon.json"
 
 
 def clean_rules(rules: Any) -> list[dict]:
@@ -154,8 +154,12 @@ LEXICON = Lexicon()
 
 def _spoken(text: str) -> Optional[str]:
     """What the engine's own normaliser makes of the text (numbers, units,
-    formulas → words), when the SDK is importable."""
+    formulas → words), when the SDK is importable. Only the Vietnamese
+    (VieNeu) engine has such a normaliser."""
     try:
+        from .engine import MANAGER
+        if MANAGER.mode == "kokoro":
+            return None
         from vieneu_utils.phonemize_text import normalize_to_chunks_v3_with_gaps
         chunks, _ = normalize_to_chunks_v3_with_gaps(text, max_chars=512)
         return re.sub(r"</?\w+>", "", " ".join(chunks))   # drop internal markup such as <en>…</en>

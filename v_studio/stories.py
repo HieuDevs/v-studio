@@ -1,5 +1,5 @@
 """Story studio ("Phòng thu Truyện"): multi-voice stories built segment by
-segment, persisted under ``~/.vieneu/studio/stories/<id>/``:
+segment, persisted under ``~/.vstudio/stories/<id>/``:
 
     project.json        name, pause, characters, segments (+ audio metadata)
     seg-<segment>.flac  the generated audio of one segment
@@ -35,7 +35,7 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 
-from .engine import voices_home
+from .engine import app_home
 
 router = APIRouter(prefix="/api/stories")
 
@@ -49,7 +49,7 @@ OUT_RATES = (48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 8_000)
 
 
 def stories_dir() -> Path:
-    return voices_home() / "studio" / "stories"
+    return app_home() / "stories"
 
 
 def _new_id(n: int = 12) -> str:

@@ -29,12 +29,12 @@ except Exception:  # noqa: BLE001
 
 # Packaged builds run without a console (sys.stdout / sys.stderr are None on
 # Windows), which breaks uvicorn and download progress bars. Send all output to
-# a log file instead: ~/.vieneu/studio.log
+# a log file instead: ~/.vstudio/v-studio.log
 if getattr(sys, "frozen", False) or sys.stdout is None or sys.stderr is None:
     try:
-        _log_dir = os.path.join(os.path.expanduser("~"), ".vieneu")
+        _log_dir = os.environ.get("VSTUDIO_HOME") or os.path.join(os.path.expanduser("~"), ".vstudio")
         os.makedirs(_log_dir, exist_ok=True)
-        _log_file = open(os.path.join(_log_dir, "studio.log"), "w", encoding="utf-8", buffering=1)
+        _log_file = open(os.path.join(_log_dir, "v-studio.log"), "w", encoding="utf-8", buffering=1)
     except OSError:
         _log_file = open(os.devnull, "w")
     if sys.stdout is None or getattr(sys, "frozen", False):
@@ -109,6 +109,11 @@ class JsApi:
         if MANAGER.infer_lock.locked():
             return {"ok": False, "error": "Đang tạo âm thanh, hãy đợi xong rồi khởi động lại."}
         updater.relaunch()
+        threading.Timer(0.3, self._window.destroy).start()
+        return {"ok": True}
+
+    def quit(self):
+        """Close the app (so an installer can replace it)."""
         threading.Timer(0.3, self._window.destroy).start()
         return {"ok": True}
 

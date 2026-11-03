@@ -1,17 +1,20 @@
-"""Model manager for V Studio: loads one VieNeu-TTS model (v3 Turbo or
-v3 Nano) through the official ``vieneu`` SDK, keeps the user's saved voices,
-and serialises inference (one generation at a time — a desktop app has one
-user, and the CPU/ONNX engines share every core anyway).
+"""Model manager for V Studio: loads one speech model at a time — VieNeu-TTS
+(v3 Turbo / v3 Nano, Vietnamese, through the official ``vieneu`` SDK) or
+Kokoro-82M (multilingual, see kokoro.py) — keeps the user's saved voices, and
+serialises inference (one generation at a time — a desktop app has one user,
+and the CPU/ONNX engines share every core anyway).
 
-Saved voices live in ``~/.vieneu/user_voices_v3_{turbo,nano}.json`` — the same
-files (and layout) as the project's Gradio app, so voices saved in either app
-show up in the other. ``VIENEU_HOME`` overrides the folder.
+Everything the app stores lives in ``~/.vstudio`` (``VSTUDIO_HOME`` overrides
+it): saved voices ``user_voices_v3_{turbo,nano}.json``, ``library/``,
+``stories/``, ``music/``, ``lexicon.json`` and downloaded ``models/``.
+Data of V Studio ≤ 1.1 (``~/.vieneu``) is copied over on first start.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -25,14 +28,68 @@ log = logging.getLogger("vieneu.studio")
 USER_MARK = "_user"
 DEFAULT_DESC = "giọng đã lưu"
 
+# features: clone (voice cloning, saved voices, denoise), emotions ([cười]-style tags),
+# watermark (Perth), normalize (Vietnamese numbers / units / formulas → words), stream.
+_VIENEU_FEATURES = ["clone", "emotions", "watermark", "normalize", "stream"]
 MODES = {
-    "v3turbo": {"label": "VieNeu-TTS v3 Turbo", "sample_rate": 48_000},
-    "v3nano": {"label": "VieNeu-TTS v3 Nano (preview)", "sample_rate": 24_000},
+    "v3turbo": {"label": "VieNeu-TTS v3 Turbo", "sample_rate": 48_000, "clone": True, "languages": ["vi"],
+                "features": _VIENEU_FEATURES},
+    "v3nano": {"label": "VieNeu-TTS v3 Nano (preview)", "sample_rate": 24_000, "clone": True, "languages": ["vi"],
+               "features": _VIENEU_FEATURES},
+    "kokoro": {"label": "Kokoro-82M (đa ngôn ngữ)", "sample_rate": 24_000, "clone": False,
+               "languages": ["en-us", "en-gb", "es", "fr-fr", "it", "pt-br", "hi", "ja", "cmn"],
+               "features": ["stream"]},
 }
 
+_migrated = False
 
-def voices_home() -> Path:
-    return Path(os.environ.get("VIENEU_HOME") or (Path.home() / ".vieneu"))
+
+def app_home() -> Path:
+    """Root folder of everything V Studio stores (``~/.vstudio``)."""
+    home = Path(os.environ.get("VSTUDIO_HOME") or (Path.home() / ".vstudio"))
+    global _migrated
+    if not _migrated:
+        _migrated = True
+        _migrate_legacy(home)
+    return home
+
+
+voices_home = app_home   # older name, kept for callers
+
+
+def _migrate_legacy(home: Path) -> None:
+    """Copy the data of V Studio ≤ 1.1 (``~/.vieneu/studio/*`` and the saved
+    voices in ``~/.vieneu``) into the new home, once. The old folder is left
+    untouched: the VieNeu Gradio app may still use it."""
+    old = Path(os.environ.get("VIENEU_HOME") or (Path.home() / ".vieneu"))
+    marker = home / ".migrated"
+    if marker.exists() or not old.is_dir():
+        return
+    try:
+        home.mkdir(parents=True, exist_ok=True)
+        studio = old / "studio"
+        items = list(studio.iterdir()) if studio.is_dir() else []
+        items += list(old.glob("user_voices_v3_*.json"))
+        for src in items:
+            dst = home / src.name
+            if dst.exists():   # never overwrite data already in the new home
+                continue
+            if src.is_dir():
+                shutil.copytree(src, dst)
+            else:
+                shutil.copy2(src, dst)
+        marker.write_text(f"copied from {old}\n", encoding="utf-8")
+        log.info("Copied V Studio data from %s to %s", old, home)
+    except Exception:  # noqa: BLE001 — never block start-up over this
+        log.exception("Could not copy old data from %s", old)
+
+
+def _kokoro_downloaded() -> dict:
+    try:
+        from .kokoro import downloaded
+        return downloaded(app_home() / "models" / "kokoro")
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _cuda_available() -> bool:
@@ -68,6 +125,7 @@ class ModelManager:
         self.load_started: Optional[float] = None
         self.load_seconds: Optional[float] = None
         self.error: Optional[str] = None
+        self.note: Optional[str] = None   # loading progress shown in the UI (downloads)
         self._load_lock = threading.Lock()
         self.infer_lock = threading.Lock()
 
@@ -87,6 +145,12 @@ class ModelManager:
             "error": self.error,
             "mode": self.mode,
             "mode_label": MODES.get(self.mode or "", {}).get("label"),
+            "loading_note": self.note if self.loading else None,
+            "can_clone": bool(MODES.get(self.mode or "", {}).get("clone")) and tts is not None,
+            "languages": MODES.get(self.mode or "", {}).get("languages", []),
+            "features": MODES.get(self.mode or "", {}).get("features", []) if tts is not None else [],
+            "modes": MODES,
+            "downloads": {"kokoro": _kokoro_downloaded()},
             "backend": getattr(tts, "backend", None),
             "sample_rate": getattr(tts, "sample_rate", None),
             "default_voice": getattr(tts, "_default_voice", None),
@@ -99,7 +163,7 @@ class ModelManager:
                 "watermark": _watermark_available(),
                 "cpu_count": os.cpu_count(),
             },
-            "voices_home": str(voices_home()),
+            "voices_home": str(app_home()),
         }
 
     # ── loading ───────────────────────────────────────────────────────────
@@ -111,18 +175,22 @@ class ModelManager:
             raise ValueError(f"mode phải là một trong {list(MODES)}")
         self.loading = True
         self.error = None
+        self.note = None
         self.load_started = time.time()
         threading.Thread(target=self._load, args=(cfg,), daemon=True).start()
 
     def _load(self, cfg: dict) -> None:
         with self._load_lock:
             try:
-                from vieneu import Vieneu
-
                 mode = cfg.get("mode", "v3turbo")
                 kw: dict = {}
                 threads = int(cfg.get("threads") or 0)
-                if mode == "v3turbo":
+                if mode == "kokoro":
+                    kw.update(precision=cfg.get("precision") if cfg.get("precision") in ("fp32", "int8") else "fp32",
+                              threads=threads)
+                    if cfg.get("model_dir"):
+                        kw["model_dir"] = str(cfg["model_dir"]).strip()
+                elif mode == "v3turbo":
                     kw.update(
                         backend=cfg.get("backend") or "auto",
                         device=cfg.get("device") or "auto",
@@ -151,7 +219,12 @@ class ModelManager:
                             pass
                     log.info("⏳ Loading %s with %s", mode, kw)
                     t = time.time()
-                    tts = Vieneu(mode=mode, **kw)
+                    if mode == "kokoro":
+                        from .kokoro import KokoroTTS
+                        tts = KokoroTTS(home=app_home() / "models" / "kokoro", note=self._set_note, **kw)
+                    else:
+                        from vieneu import Vieneu
+                        tts = Vieneu(mode=mode, **kw)
                     self.load_seconds = round(time.time() - t, 1)
                     self.mode = mode
                     self.config = {"mode": mode, **{k: v for k, v in kw.items()}}
@@ -163,6 +236,20 @@ class ModelManager:
                 self.error = f"{type(e).__name__}: {e}"
             finally:
                 self.loading = False
+                self.note = None
+
+    def _set_note(self, text: Optional[str]) -> None:
+        self.note = text
+
+    @property
+    def can_clone(self) -> bool:
+        return bool(MODES.get(self.mode or "", {}).get("clone"))
+
+    def require_clone(self):
+        tts = self.require()
+        if not self.can_clone:
+            raise ValueError("Mô hình đang dùng không nhân bản được giọng. Hãy chọn VieNeu-TTS (tiếng Việt) trong mục Mô hình.")
+        return tts
 
     def require(self):
         if self.tts is None:
@@ -177,7 +264,7 @@ class ModelManager:
         return "nano" if self.mode == "v3nano" else "turbo"
 
     def user_voices_path(self) -> Path:
-        return voices_home() / f"user_voices_v3_{self.kind}.json"
+        return app_home() / f"user_voices_v3_{self.kind}.json"
 
     def voices(self) -> list[dict]:
         tts = self.require()
@@ -186,12 +273,14 @@ class ModelManager:
         for name, v in presets.items():
             desc = v.get("description", "") or ""
             parts = [p.strip() for p in desc.split("·")]
-            region = parts[1] if len(parts) >= 3 else ""
+            region = parts[1] if len(parts) >= 3 and not v.get("language") else ""
             out.append({
                 "id": name,
                 "description": desc,
                 "gender": v.get("gender", "") or "",
                 "region": region,
+                "language": v.get("language") or "vi",
+                "language_label": v.get("language_label") or "Tiếng Việt",
                 "featured": v.get("featured"),
                 "aliases": list(v.get("aliases") or []),
                 "user": bool(v.get(USER_MARK)),
@@ -202,7 +291,7 @@ class ModelManager:
     def load_user_voices(self) -> int:
         tts = self.tts
         path = self.user_voices_path()
-        if tts is None or not path.is_file():
+        if tts is None or not self.can_clone or not path.is_file():
             return 0
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -258,7 +347,7 @@ class ModelManager:
         os.replace(tmp, path)
 
     def save_voice(self, name: str, ref_path: str, *, denoise: bool, description: str, gender: str) -> str:
-        tts = self.require()
+        tts = self.require_clone()
         name = (name or "").strip()
         if not name:
             raise ValueError("Hãy đặt tên cho giọng.")
@@ -289,7 +378,7 @@ class ModelManager:
 
     # ── denoise ───────────────────────────────────────────────────────────
     def denoise(self, ref_path: str) -> tuple[np.ndarray, int]:
-        tts = self.require()
+        tts = self.require_clone()
         with self.infer_lock:
             if hasattr(tts, "denoise"):
                 return tts.denoise(ref_path)

@@ -13,7 +13,7 @@ page is its only client).
     POST   /api/encode          multipart(file=WAV, format) → wav | flac | ogg | mp3
     POST   /api/extract         multipart(file=.txt/.md/.pdf/.docx) → {"text": ...}
     POST   /api/stash           multipart(file) → {"id"}; the window saves it with a native dialog
-    GET    /api/update/check    newest vieneu on PyPI vs installed; POST /api/update/install; GET /api/update/status
+    GET    /api/update/check    newest V Studio release on GitHub vs this one; POST /api/update/install; GET /api/update/status
 
 Also mounted: /api/stories (stories.py), /api/lexicon (lexicon.py), /api/library (library.py),
 /api/music + /api/mix (music.py).
@@ -183,6 +183,9 @@ def denoise(file: UploadFile = File(...)):
 # ── synthesis ────────────────────────────────────────────────────────────────
 
 def _infer_kwargs(mode: str, p: dict, stream: bool) -> dict:
+    if mode == "kokoro":
+        return {"speed": _clamp(p.get("speed", 1.0), 0.5, 2.0),
+                "max_chars": _clamp(p.get("max_chars", 300), 40, 600, int)}
     kw: dict = {"denoise": bool(p.get("denoise", True))}
     if mode == "v3turbo":
         kw.update(
@@ -263,6 +266,8 @@ def tts(text: str = Form(...), voice: str = Form(""), params: str = Form("{}"),
     if out_rate not in OUT_RATES:
         raise HTTPException(400, f"sample_rate phải thuộc {OUT_RATES}")
 
+    if ref_audio is not None and ref_audio.filename and not MANAGER.can_clone:
+        raise HTTPException(400, "Mô hình đang dùng không nhân bản được giọng. Hãy chọn VieNeu-TTS (tiếng Việt) trong mục Mô hình.")
     ref_path = _save_upload(ref_audio) if ref_audio is not None and ref_audio.filename else None
     if ref_path is None:
         v = voice or None
@@ -386,7 +391,7 @@ def stash(file: UploadFile = File(...)):
     return {"id": sid}
 
 
-# ── updates ──────────────────────────────────────────────────────────────────
+# ── app updates (updater.py: GitHub releases of V Studio) ──────────────────────
 
 @app.get("/api/update/check")
 def update_check(force: bool = False):
@@ -394,7 +399,7 @@ def update_check(force: bool = False):
     try:
         return updater.check(force=force)
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"Không kiểm tra được cập nhật (cần mạng): {e}")
+        raise HTTPException(502, f"Không kiểm tra được bản mới (cần mạng): {e}")
 
 
 @app.post("/api/update/install")

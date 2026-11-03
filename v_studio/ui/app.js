@@ -54,6 +54,14 @@ const SPECS = {
       { k: 'max_chars', label: 'Số ký tự tối đa mỗi đoạn', min: 32, max: 300, step: 4, def: 140, hint: 'Nano được huấn luyện với câu ≤ 15 giây — nên giữ đoạn ngắn.' },
     ]},
   ],
+  kokoro: [
+    { group: 'Giọng đọc', items: [
+      { k: 'speed', label: 'Tốc độ đọc', min: 0.5, max: 2, step: 0.05, def: 1, hint: '>1 nhanh hơn, <1 chậm hơn.' },
+    ]},
+    { group: 'Chia đoạn', items: [
+      { k: 'max_chars', label: 'Số ký tự tối đa mỗi đoạn', min: 40, max: 600, step: 10, def: 300, hint: 'Văn bản được tách theo câu; đoạn ngắn thì phát trực tiếp nhanh hơn.' },
+    ]},
+  ],
   common: [
     { group: 'Âm thanh mẫu (nhân bản)', items: [
       { k: 'denoise', type: 'check', label: 'Khử nhiễu âm thanh mẫu', def: true, hint: 'Áp dụng cho tab Nhân bản giọng.', hidden: true },
@@ -66,6 +74,9 @@ const SPECS = {
   ],
 };
 const mode = () => S.status?.mode || 'v3turbo';
+const MODE_SHORT = { v3turbo: 'Tiếng Việt · v3 Turbo', v3nano: 'Tiếng Việt · v3 Nano', kokoro: 'Đa ngôn ngữ · Kokoro' };
+/** Clone / denoise / saved voices exist only with VieNeu. */
+const canClone = () => hasFeature('clone');
 const specsFor = (m) => SPECS[m].concat(SPECS.common);
 function defaults(m) {
   const o = {};
@@ -87,6 +98,15 @@ const fmtSec = (s) => {
   const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const icon = (n) => `<svg class="ic"><use href="#i-${n}"/></svg>`;
+/** Round initials badge with a stable hue per name. */
+function avatar(name) {
+  const w = String(name || '?').trim().split(/\s+/).filter(s => /^\p{L}/u.test(s));   // skip "(JA)"-style tags
+  if (!w.length) w.push('?');
+  const ini = ((w.length > 1 ? w[w.length - 2][0] : '') + (w[w.length - 1]?.[0] || '?')).toUpperCase();
+  let h = 0; for (const c of String(name)) h = (h * 31 + c.codePointAt(0)) % 360;
+  return `<span class="avatar" style="--h:${h}" aria-hidden="true">${esc(ini)}</span>`;
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
@@ -260,8 +280,8 @@ function renderStats(it) {
   const dur = it.pcm.length / it.sr;
   const st = [['Thời lượng', fmtSec(dur)], ['Xử lý', it.elapsed ? fmtSec(it.elapsed) : '–'],
     ['RTF', it.elapsed && dur ? (it.elapsed / dur).toFixed(2) : '–'], ['Tần số', `${it.sr / 1000} kHz`]];
-  if (it.ttfa) st.splice(2, 0, ['Âm thanh đầu tiên sau', `${Math.round(it.ttfa * 1000)} ms`]);
-  $('#outStats').innerHTML = st.map(([k, v]) => `<span class="stat">${k}: <b>${v}</b></span>`).join('');
+  if (it.ttfa) st.splice(2, 0, ['Âm đầu tiên', `${Math.round(it.ttfa * 1000)} ms`]);
+  $('#outStats').innerHTML = st.map(([k, v]) => `<span class="stat"><span>${k}</span><b>${v}</b></span>`).join('');
 }
 function setStatus(msg, cls = '') { const el = $('#outStatus'); el.textContent = msg || ''; el.className = 'status small ' + cls; }
 
@@ -339,7 +359,7 @@ function renderLibMeta() {
   $('#libStats').textContent = `${j.total.toLocaleString('vi-VN')} bản · ${fmtSec(j.duration)} · ${fmtBytes(j.bytes)}`;
   $('#libDir').textContent = j.dir;
   const sel = $('#libKind'), cur = sel.value;
-  sel.innerHTML = '<option value="">Tất cả loại</option>' + j.kinds.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  sel.innerHTML = '<option value="">Tất cả</option>' + j.kinds.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
   sel.value = j.kinds.includes(cur) ? cur : '';
 }
 const fmtWhen = (d) => {
@@ -349,19 +369,20 @@ const fmtWhen = (d) => {
 function renderHistory() {
   const ul = $('#history');
   if (!S.history.length) {
-    ul.innerHTML = `<li class="muted small">${LIB.q || LIB.kind ? 'Không tìm thấy bản nào.' : 'Chưa có bản nào. Mọi bản bạn tạo sẽ được lưu ở đây.'}</li>`;
+    ul.innerHTML = `<li class="muted small">${LIB.q || LIB.kind ? 'Không tìm thấy bản nào.' : 'Chưa có bản nào.<br>Mọi bản bạn tạo sẽ được lưu ở đây.'}</li>`;
     $('#libMore').hidden = true; return;
   }
   ul.innerHTML = S.history.map(h => {
     const dur = h.pcm ? h.pcm.length / h.sr : h.duration;
     const state = h.libId ? '' : h.saving ? ' · đang lưu…' : ' · <span class="unsaved">chưa lưu</span>';
-    return `<li class="item${S.output?.id === h.id ? ' current' : ''}" data-id="${h.id}">
-    <button class="btn ghost small" data-act="play" title="Mở và phát">▶</button>
+    const cls = (S.output?.id === h.id ? ' current' : '') + (h.libId || h.saving ? '' : ' unsaved');
+    return `<li class="item${cls}" data-id="${h.id}">
+    <button class="hplay" type="button" data-act="play" title="Mở và phát" aria-label="Phát">${icon('play')}</button>
     <div class="grow"><div class="title" title="Nháy đúp để đổi tên">${esc(h.title)}</div>
     <div class="meta">${esc(h.kind || '')}${h.voice ? ' · ' + esc(h.voice) : ''} · ${fmtSec(dur)} · ${fmtWhen(h.time)}${state}</div></div>
-    ${h.libId || h.saving ? '' : '<button class="btn ghost small" data-act="save" title="Lưu vào thư viện">Lưu</button>'}
-    <button class="btn ghost small" data-act="dl" title="Tải xuống">⤓</button>
-    <button class="btn ghost small" data-act="rm" title="Xoá">✕</button></li>`;
+    <div class="hact">${h.libId || h.saving ? '' : `<button class="btn ghost small" type="button" data-act="save" title="Lưu vào thư viện">Lưu</button>`}
+    <button class="btn ghost small icon-only" type="button" data-act="dl" title="Tải xuống" aria-label="Tải xuống">${icon('download')}</button>
+    <button class="btn ghost small icon-only danger" type="button" data-act="rm" title="Xoá" aria-label="Xoá">${icon('trash')}</button></div></li>`;
   }).join('');
   $('#libMore').hidden = LIB.offset >= LIB.total;
 }
@@ -401,8 +422,8 @@ function renameInline(titleEl, item) {
 }
 function confirmClick(btn, label, fn) {
   if (btn.dataset.confirm === '1') { fn(); return; }
-  const old = btn.textContent; btn.dataset.confirm = '1'; btn.textContent = label;
-  setTimeout(() => { btn.dataset.confirm = ''; btn.textContent = old; }, 3000);
+  const old = btn.innerHTML; btn.dataset.confirm = '1'; btn.textContent = label;
+  setTimeout(() => { btn.dataset.confirm = ''; btn.innerHTML = old; }, 3000);
 }
 function initLibrary() {
   const auto = $('#libAutosave'); auto.checked = LIB.autosave;
@@ -453,6 +474,16 @@ async function downloadItem(item) {
 
 // ── voices ─────────────────────────────────────────────────────────────────
 function voiceGroups() {
+  if (S.voices.some(v => v.language && v.language !== 'vi')) {
+    // Multilingual model: one group per language (editors' picks also stay in their language group).
+    const langs = new Map();
+    for (const v of S.voices.filter(x => !x.user)) {
+      const k = v.language_label || v.language;
+      if (!langs.has(k)) langs.set(k, []);
+      langs.get(k).push(v);
+    }
+    return [['⭐ Đề xuất', S.voices.filter(v => v.featured && !v.user)], ...langs, ['Giọng của bạn', S.voices.filter(v => v.user)]];
+  }
   const g = { featured: [], 'Bắc': [], 'Trung': [], 'Nam': [], other: [], user: [] };
   for (const v of S.voices) {
     if (v.user) g.user.push(v);
@@ -476,13 +507,22 @@ async function refreshVoices() {
   fillVoiceSelect($('#readVoice'), store.get('voice.' + mode(), null));
   fillVoiceSelect($('#srtVoice'));
   const lv = $('#lexVoice'); if (lv) fillVoiceSelect(lv, lv.value || $('#readVoice').value);
+  // Just loaded from a language in the model dialog: start with a voice of that language everywhere.
+  if (S.pendingLang && isMulti()) {
+    ['#readVoice', '#srtVoice', '#lexVoice'].forEach(id => pickVoiceFor(S.pendingLang, id, true));
+    if (LS[S.pendingLang]) { S.convLang = S.pendingLang; store.set('convLang', S.pendingLang); }
+  }
+  S.pendingLang = null;
+  renderConvLang();
   renderSpeakers();
   renderUserVoices();
+  fillSamples();
+  adaptSamples();
 }
 function renderUserVoices() {
   const ul = $('#userVoices'), list = S.voices.filter(v => v.user);
   if (!list.length) { ul.innerHTML = '<li class="muted small">Chưa có giọng nào.</li>'; return; }
-  ul.innerHTML = list.map(v => `<li class="item" data-id="${esc(v.id)}"><div class="grow"><div class="title">${esc(v.id)}</div>
+  ul.innerHTML = list.map(v => `<li class="item" data-id="${esc(v.id)}">${avatar(v.id)}<div class="grow"><div class="title">${esc(v.id)}</div>
     <div class="meta">${esc(v.description || '')}</div></div>
     <button class="btn ghost small" data-act="use">Dùng để đọc</button>
     <button class="btn ghost small danger" data-act="del">Xoá</button></li>`).join('');
@@ -499,25 +539,30 @@ function renderParams() {
   }).join('');
   const wm = S.status?.system?.watermark;
   const wmEl = root.querySelector('[data-k="watermark"]');
-  if (wmEl && !wm) {
+  if (wmEl && (!wm || m === 'kokoro')) {
     wmEl.querySelector('input').disabled = true;
-    wmEl.querySelector('.hint').textContent = 'Chưa cài resemble-perth (pip install "vieneu[watermark]") nên không đóng dấu được.';
+    wmEl.querySelector('.hint').textContent = m === 'kokoro' ? 'Chỉ có với mô hình VieNeu-TTS.'
+      : 'Chưa cài resemble-perth (pip install "vieneu[watermark]") nên không đóng dấu được.';
   }
-  $('#settingsNote').textContent = m === 'v3nano'
-    ? 'Thiết lập cho VieNeu-TTS v3 Nano (24 kHz). Lưu riêng theo từng mô hình.'
-    : 'Thiết lập cho VieNeu-TTS v3 Turbo (48 kHz). Lưu riêng theo từng mô hình.';
+  $('#settingsNote').textContent = {
+    v3nano: 'Thiết lập cho VieNeu-TTS v3 Nano (tiếng Việt, 24 kHz).',
+    kokoro: 'Thiết lập cho Kokoro-82M (đa ngôn ngữ, 24 kHz).',
+  }[m] || 'Thiết lập cho VieNeu-TTS v3 Turbo (tiếng Việt, 48 kHz).';
 }
-function paramHtml(it) {
-  const v = S.params[it.k];
-  if (it.type === 'check') return `<div class="param" data-k="${it.k}"><label class="check"><input type="checkbox" ${v ? 'checked' : ''}> ${it.label}</label>${it.hint !== undefined ? `<div class="hint">${it.hint}</div>` : ''}</div>`;
+function paramHtml(it, P = S.params) {
+  const v = P[it.k];
+  if (it.type === 'check') return `<div class="param" data-k="${it.k}"><label class="switch"><input type="checkbox" ${v ? 'checked' : ''}><span class="sw"></span><span>${it.label}</span></label>${it.hint !== undefined ? `<div class="hint">${it.hint}</div>` : ''}</div>`;
   if (it.type === 'select') return `<div class="param" data-k="${it.k}"><div class="param-head"><label>${it.label}</label></div><select>${it.options().map(([ov, ol]) => `<option value="${ov}" ${String(ov) === String(v) ? 'selected' : ''}>${ol}</option>`).join('')}</select></div>`;
   if (it.type === 'number') return `<div class="param" data-k="${it.k}"><div class="param-head"><label>${it.label}</label><input type="number" min="0" step="1" value="${v ?? ''}" placeholder="ngẫu nhiên"></div>${it.hint ? `<div class="hint">${it.hint}</div>` : ''}</div>`;
   return `<div class="param" data-k="${it.k}"><div class="param-head"><label>${it.label}</label><input type="number" min="${it.min}" max="${it.max}" step="${it.step}" value="${v}"></div>
     <input type="range" min="${it.min}" max="${it.max}" step="${it.step}" value="${v}">${it.hint ? `<div class="hint">${it.hint}</div>` : ''}</div>`;
 }
-function onParamInput(e) {
+function onParamInput(e) { paramInput(e, mode(), S.params, saveParams); }
+/** One edit in a parameter editor (settings drawer, or a model card in the model dialog). */
+function paramInput(e, m, P, save) {
   const box = e.target.closest('.param'); if (!box) return;
-  const k = box.dataset.k, spec = specsFor(mode()).flatMap(g => g.items).find(i => i.k === k);
+  const k = box.dataset.k, spec = specsFor(m).flatMap(g => g.items).find(i => i.k === k);
+  if (!spec) return;
   let v;
   if (spec.type === 'check') v = e.target.checked;
   else if (spec.type === 'select') v = isNaN(+e.target.value) ? e.target.value : +e.target.value;
@@ -527,7 +572,7 @@ function onParamInput(e) {
     if (e.type === 'change') v = Math.min(spec.max, Math.max(spec.min, v));
     $$('input', box).forEach(i => { if (i !== e.target || e.type === 'change') i.value = v; });
   }
-  S.params[k] = v; saveParams();
+  P[k] = v; save();
 }
 
 // ── model status / dialog ──────────────────────────────────────────────────
@@ -546,8 +591,10 @@ async function pollStatus() {
     if (!prev || prev.mode !== st.mode || !prev.formats) { loadParams(mode()); renderParams(); }
     $('#voicesHome').textContent = st.voices_home;
     if (st.loaded && !st.loading) { try { await refreshVoices(); } catch (e) { toast(e.message, true); } }
+    fillSamples();
     updateButtons();
     renderDialogStatus();
+    if ($('#modelDialog').open && !st.loading) { renderLangNav(); renderLangPane(); }
     if (prev?.loading && !st.loading) {
       if (st.error) toast('Không tải được mô hình: ' + st.error, true, 8000);
       else toast(`Đã tải ${st.mode_label} (${st.load_seconds}s)`);
@@ -560,10 +607,11 @@ function renderModelPill() {
   const st = S.status, dot = $('#modelDot'), tx = $('#modelText');
   if (st.loading) {
     dot.className = 'dot busy';
-    tx.textContent = `Đang tải mô hình… ${st.loading_for ? Math.round(st.loading_for) + 's' : ''}`;
+    tx.textContent = st.loading_note || `Đang tải mô hình… ${st.loading_for ? Math.round(st.loading_for) + 's' : ''}`;
   } else if (st.loaded) {
     dot.className = 'dot ok';
-    tx.textContent = `${st.mode === 'v3nano' ? 'v3 Nano' : 'v3 Turbo'} · ${String(st.backend).toUpperCase()} · ${st.sample_rate / 1000} kHz`;
+    tx.textContent = MODE_SHORT[st.mode] || st.mode_label;
+    $('#modelPill').title = `${st.mode_label} · ${String(st.backend).toUpperCase()} · ${st.sample_rate / 1000} kHz — bấm để đổi ngôn ngữ / mô hình`;
   } else if (st.error) { dot.className = 'dot err'; tx.textContent = 'Lỗi tải mô hình — bấm để xem'; }
   else { dot.className = 'dot'; tx.textContent = 'Chưa tải mô hình'; }
 }
@@ -574,34 +622,168 @@ function renderDialogStatus() {
   const el = $('#loadStatus');
   if (st.loading) {
     el.className = 'status small';
-    el.textContent = `Đang tải… ${Math.round(st.loading_for || 0)}s. Lần đầu cần tải mô hình từ Hugging Face (v3 Turbo ~1 GB), có thể mất vài phút.`;
+    el.textContent = st.loading_note || `Đang tải… ${Math.round(st.loading_for || 0)}s. Lần đầu cần tải mô hình về máy, có thể mất vài phút.`;
   } else if (st.error) { el.className = 'status small err'; el.textContent = st.error; }
   else if (st.loaded) { el.className = 'status small ok'; el.textContent = `Đang dùng ${st.mode_label} · backend ${st.backend} · tải trong ${st.load_seconds}s`; }
   else { el.className = 'status small'; el.textContent = ''; }
-  $('#loadBtn').disabled = !!st.loading;
+  renderDialogFoot();
 }
-function openModelDialog() {
-  const f = $('#modelDialog form'), cfg = S.status?.config || {}, saved = store.get('modelCfg', {});
-  const c = Object.assign({}, saved, cfg);
-  f.mode.value = c.mode || 'v3turbo';
-  for (const k of ['backend', 'device', 'precision', 'max_batch_size', 'max_streams', 'steps', 'cfg', 'backbone_repo']) if (c[k] != null && f[k]) f[k].value = c[k];
-  if (c.threads != null) { f.threads.value = c.threads; f.threads_n.value = c.threads; }
-  syncModeFields(); renderDialogStatus();
-  if (!UPD.info) checkUpdates({ silent: true });
-  $('#modelDialog').showModal();
+
+// ── "Ngôn ngữ & mô hình" dialog: languages on the left, their models on the right ──
+const MODEL_UI = {
+  v3turbo: { name: 'VieNeu-TTS v3 Turbo', badge: ['Khuyến nghị', 'ok'], desc: '48 kHz · 25 giọng ba miền Bắc – Trung – Nam · đọc xen tiếng Anh, số, đơn vị, công thức. Lần đầu tải ~1 GB từ Hugging Face.' },
+  v3nano: { name: 'VieNeu-TTS v3 Nano', badge: ['preview', ''], desc: '24 kHz · 11 giọng · nhanh gấp ~3 lần trên CPU yếu, chất lượng thấp hơn (nhất là khi xen tiếng Anh).' },
+  kokoro: { name: 'Kokoro-82M', badge: ['Đa ngôn ngữ', 'ok'], desc: '24 kHz · 54 giọng cho 9 ngôn ngữ · Apache 2.0. Ngôn ngữ đọc đi theo giọng bạn chọn.' },
+};
+const FEATURE_UI = [['clone', 'Nhân bản giọng'], ['emotions', 'Thẻ cảm xúc'], ['normalize', 'Đọc số & công thức tiếng Việt'], ['watermark', 'Watermark'], ['stream', 'Phát trực tiếp']];
+const LANG_UI = [
+  { code: 'vi', tag: 'VI', name: 'Tiếng Việt', native: 'Tiếng Việt', voices: '25 giọng · 3 miền', desc: 'Giọng ba miền, nhân bản giọng, đọc đúng số, đơn vị và công thức toán, hoá.' },
+  { code: 'en-us', tag: 'EN', name: 'Tiếng Anh (Mỹ)', native: 'English (US)', voices: '20 giọng' },
+  { code: 'en-gb', tag: 'EN', name: 'Tiếng Anh (Anh)', native: 'English (UK)', voices: '8 giọng' },
+  { code: 'es', tag: 'ES', name: 'Tiếng Tây Ban Nha', native: 'Español', voices: '3 giọng' },
+  { code: 'fr-fr', tag: 'FR', name: 'Tiếng Pháp', native: 'Français', voices: '1 giọng' },
+  { code: 'it', tag: 'IT', name: 'Tiếng Ý', native: 'Italiano', voices: '2 giọng' },
+  { code: 'pt-br', tag: 'PT', name: 'Tiếng Bồ Đào Nha (Brazil)', native: 'Português (BR)', voices: '3 giọng' },
+  { code: 'hi', tag: 'HI', name: 'Tiếng Hindi', native: 'हिन्दी', voices: '4 giọng' },
+  { code: 'ja', tag: 'JA', name: 'Tiếng Nhật', native: '日本語', voices: '5 giọng', desc: 'Chữ Hán (kanji) cần gói tuỳ chọn pyopenjtalk-plus (pip install "v-studio[ja]"), nếu không sẽ đọc sai.' },
+  { code: 'cmn', tag: 'ZH', name: 'Tiếng Trung (Quan thoại)', native: '中文', voices: '8 giọng' },
+];
+const DLG = { lang: 'vi', mode: null };
+const modesFor = (lang) => {
+  const ms = S.status?.modes;
+  if (!ms) return lang === 'vi' ? ['v3turbo', 'v3nano'] : ['kokoro'];
+  return Object.keys(ms).filter(k => (ms[k].languages || []).includes(lang));
+};
+const featuresOf = (m) => S.status?.modes?.[m]?.features || [];
+const liveMode = () => (S.status?.loaded && !S.status.loading ? S.status.mode : null);
+/** Saved load options of a model: last used for it (or the running config). */
+function cfgOf(m) {
+  const legacy = store.get('modelCfg', {});
+  return Object.assign({}, legacy.mode === m ? legacy : {}, store.get('modelCfg.' + m, {}), S.status?.config?.mode === m ? S.status.config : {});
 }
-function syncModeFields() {
-  const m = $('#modelDialog form').mode.value;
-  $$('#modelDialog [data-for]').forEach(el => { el.hidden = el.dataset.for !== m; });
+function fillCfgFields() {
+  const f = $('#modelDialog form'), set = (n, v) => { if (v != null && v !== '' && f[n]) f[n].value = v; };
+  const t = cfgOf('v3turbo'), n = cfgOf('v3nano'), k = cfgOf('kokoro');
+  ['backend', 'device', 'precision', 'max_batch_size', 'max_streams', 'backbone_repo'].forEach(x => set(x, t[x]));
+  set('threads', t.threads); set('onnx_dir_t', t.onnx_dir);
+  set('threads_n', n.threads); set('steps', n.steps); set('cfg', n.cfg); set('onnx_dir_n', n.onnx_dir);
+  set('precision_k', k.precision); set('threads_k', k.threads); set('model_dir_k', k.model_dir);
+}
+function openModelDialog(lang) {
+  const st = S.status || {};
+  if (typeof lang !== 'string') lang = st.mode === 'kokoro' ? voiceLang('#readVoice') : 'vi';
+  DLG.lang = LANG_UI.some(l => l.code === lang) ? lang : 'vi';
+  DLG.mode = null;
+  fillCfgFields(); renderLangNav(); renderLangPane(); renderDialogStatus();
+  if (!$('#modelDialog').open) $('#modelDialog').showModal();
+}
+function renderLangNav() {
+  const live = liveMode(), liveLangs = live ? (S.status.modes?.[live]?.languages || []) : [];
+  const item = (l) => `<button type="button" class="lang-item${DLG.lang === l.code ? ' on' : ''}" data-lang="${l.code}">
+      <span class="lang-tag">${l.tag}</span>
+      <span class="grow"><b>${esc(l.native)}</b><small>${esc(l.native === l.name ? l.voices : l.name)}</small></span>
+      ${liveLangs.includes(l.code) ? '<span class="dot ok" title="Mô hình đang chạy đọc được ngôn ngữ này"></span>' : ''}</button>`;
+  $('#langNav').innerHTML = `<div class="lang-nav-label">Ngôn ngữ</div>${LANG_UI.map(item).join('')}`;
+}
+function parkGrids() { $$('#modelList .cfg-grid').forEach(g => $('#cfgStore').appendChild(g)); }
+function paramsOf(m) {
+  return m === mode() && S.status?.loaded ? S.params : Object.assign(defaults(m), store.get('params.' + m, {}));
+}
+function renderParamSlot(slot, m) {
+  const P = paramsOf(m);
+  slot.innerHTML = SPECS[m].map(g => {
+    const items = g.items.filter(it => !it.hidden);
+    return items.length ? `<div class="group"><h3>${g.group}</h3>${items.map(it => paramHtml(it, P)).join('')}</div>` : '';
+  }).join('');
+}
+function renderLangPane() {
+  parkGrids();
+  const L = LANG_UI.find(l => l.code === DLG.lang) || LANG_UI[0];
+  const models = modesFor(L.code), live = liveMode();
+  if (!models.includes(DLG.mode)) DLG.mode = models.includes(live) ? live : models[0];
+  $('#langTag').textContent = L.tag;
+  $('#langTitle').textContent = L.native === L.name ? L.name : `${L.native} · ${L.name}`;
+  $('#langDesc').textContent = [L.voices, L.desc || `${models.length} mô hình đọc được ngôn ngữ này.`].filter(Boolean).join(' · ');
+  const dl = S.status?.downloads?.kokoro || {};
+  $('#modelList').innerHTML = models.map(m => {
+    const ui = MODEL_UI[m] || { name: m, desc: '' }, feats = featuresOf(m), open = m === DLG.mode;
+    const disk = m === 'kokoro' ? (dl.fp32 || dl.int8 ? `<span class="disk ok">${icon('check')}Đã tải về máy${dl.fp32 && dl.int8 ? '' : dl.fp32 ? ' (fp32)' : ' (int8)'}</span>` : `<span class="disk">${icon('download')}Cần tải ~350 MB (int8 ~120 MB)</span>`) : '';
+    return `<div class="model-item${open ? ' open' : ''}${m === live ? ' live' : ''}" data-mode="${m}">
+      <button type="button" class="model-row" aria-expanded="${open}">
+        <span class="model-radio" aria-hidden="true"></span>
+        <span class="grow">
+          <strong>${esc(ui.name)}${ui.badge ? ` <em class="${ui.badge[1]}">${ui.badge[0]}</em>` : ''}${m === live ? ' <em class="live">Đang dùng</em>' : ''}</strong>
+          <span class="small muted">${esc(ui.desc)}</span>
+          <span class="feat-chips">${FEATURE_UI.map(([f, l]) => `<span class="${feats.includes(f) ? 'on' : 'off'}">${icon(feats.includes(f) ? 'check' : 'x')}${l}</span>`).join('')}${disk}</span>
+        </span>
+        <svg class="ic chev"><use href="#i-chev"/></svg>
+      </button>
+      <div class="model-body">
+        <section class="cfg-sec"><h4>Cấu hình nạp mô hình</h4><div class="cfg-slot"></div></section>
+        <section class="cfg-sec"><div class="cfg-sec-head"><h4>Thông số giọng mặc định</h4><button type="button" class="btn ghost small" data-reset-params="${m}">${icon('refresh')}Về mặc định</button></div>
+          <div class="param-slot" data-m="${m}"></div>
+          <p class="hint">Áp dụng cho mọi lượt tạo giọng bằng mô hình này. Khi mô hình đang chạy, chỉnh cả ở “Tinh chỉnh giọng”.</p></section>
+      </div></div>`;
+  }).join('');
+  const openItem = $(`#modelList .model-item[data-mode="${DLG.mode}"]`);
+  if (openItem) {
+    const grid = $(`#cfgStore .cfg-grid[data-for="${DLG.mode}"]`);
+    if (grid) $('.cfg-slot', openItem).appendChild(grid);
+    renderParamSlot($('.param-slot', openItem), DLG.mode);
+  }
+  renderDialogFoot();
+}
+function renderDialogFoot() {
+  const btn = $('#loadBtn'), pick = $('#dlgPick'); if (!btn) return;
+  const m = DLG.mode, name = MODEL_UI[m]?.name || m || '';
+  btn.disabled = !!S.status?.loading || !m;
+  btn.textContent = S.status?.loading ? 'Đang tải…' : m && m === liveMode() ? 'Nạp lại với cấu hình này' : `Dùng ${name}`;
+  const L = LANG_UI.find(l => l.code === DLG.lang);
+  pick.textContent = !m ? '' : `${name} · cho ${L ? L.native : ''}`;
+}
+function initModelDialog() {
+  $('#langNav').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lang]'); if (!b) return;
+    DLG.lang = b.dataset.lang; DLG.mode = null; renderLangNav(); renderLangPane();
+  });
+  const list = $('#modelList');
+  list.addEventListener('click', (e) => {
+    const reset = e.target.closest('[data-reset-params]');
+    if (reset) {
+      const m = reset.dataset.resetParams, P = defaults(m);
+      store.set('params.' + m, P);
+      if (m === mode() && S.status?.loaded) { S.params = P; renderParams(); }
+      renderParamSlot(reset.closest('.model-item').querySelector('.param-slot'), m);
+      toast('Đã đưa thông số về mặc định'); return;
+    }
+    const row = e.target.closest('.model-row'); if (!row) return;
+    const m = row.closest('.model-item').dataset.mode;
+    if (m === DLG.mode) return;
+    DLG.mode = m; renderLangPane();
+  });
+  const onEdit = (e) => {
+    const slot = e.target.closest('.param-slot'); if (!slot) return;
+    const m = slot.dataset.m, live = m === mode() && S.status?.loaded, P = paramsOf(m);
+    paramInput(e, m, P, () => { store.set('params.' + m, P); if (live) renderParams(); });
+  };
+  list.addEventListener('input', onEdit); list.addEventListener('change', onEdit);
+  // "Đổi mô hình" buttons elsewhere in the app open the dialog on a language
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-open-models]'); if (b) openModelDialog(b.dataset.openModels);
+  });
 }
 async function loadModel() {
-  const f = $('#modelDialog form'), m = f.mode.value;
-  const cfg = m === 'v3turbo'
+  const f = $('#modelDialog form'), m = DLG.mode;
+  if (!m) return;
+  const cfg = m === 'kokoro'
+    ? { mode: m, precision: f.precision_k.value, threads: +f.threads_k.value || 0, model_dir: f.model_dir_k.value.trim() }
+    : m === 'v3turbo'
     ? { mode: m, backend: f.backend.value, device: f.device.value, precision: f.precision.value, threads: +f.threads.value || 0,
         max_batch_size: +f.max_batch_size.value || 32, max_streams: +f.max_streams.value || 16,
         backbone_repo: f.backbone_repo.value.trim(), onnx_dir: f.onnx_dir_t.value.trim() }
     : { mode: m, threads: +f.threads_n.value || 0, steps: +f.steps.value || 16, cfg: +f.cfg.value, onnx_dir: f.onnx_dir_n.value.trim() };
-  store.set('modelCfg', cfg);
+  store.set('modelCfg.' + m, cfg);
+  S.pendingLang = m === 'kokoro' ? DLG.lang : null;
   try {
     S.status = await apiJson('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
     S.voices = []; updateButtons(); renderModelPill(); renderDialogStatus(); pollStatus();
@@ -611,9 +793,11 @@ async function loadModel() {
 function updateButtons() {
   const ready = !!S.status?.loaded && !S.status?.loading && !S.busy;
   $('#readGo').disabled = !ready; $('#previewVoice').disabled = !ready;
-  $('#cloneGo').disabled = !ready || !S.refBlob;
-  $('#denoiseBtn').disabled = !ready || !S.refBlob;
-  $('#saveVoiceBtn').disabled = !ready || !S.refBlob;
+  const clone = ready && canClone();
+  $('#cloneGo').disabled = !clone || !S.refBlob;
+  $('#denoiseBtn').disabled = !clone || !S.refBlob;
+  $('#saveVoiceBtn').disabled = !clone || !S.refBlob;
+  applyFeatures();
   $('#convGo').disabled = !ready; $('#srtGo').disabled = !ready || !S.srtCues.length;
   const ls = $('#lexSpeak'); if (ls) ls.disabled = !ready;
 }
@@ -665,6 +849,103 @@ const SAMPLES = [
   ['Quảng cáo', 'Ưu đãi cuối tuần! Giảm ngay 30% cho mọi đơn hàng từ 500.000 đồng. [cười] Nhanh tay lên, chương trình chỉ kéo dài đến hết chủ nhật này thôi!'],
   ['Xen tiếng Anh', 'Sáng nay team mình có buổi meeting để review lại roadmap của sản phẩm AI trong quý tới, sau đó sẽ demo bản update mới cho khách hàng.'],
 ];
+// ── samples that follow the loaded model (data: samples.js) ────────────────
+const LS = window.VS_SAMPLES || {};
+const isMulti = () => mode() === 'kokoro';
+/** Languages of the loaded model's voices that have samples, in samples.js order. */
+const sampleLangs = () => {
+  if (!isMulti()) return ['vi'];
+  const have = new Set(S.voices.map(v => v.language));
+  return Object.keys(LS).filter(k => k !== 'vi' && (!have.size || have.has(k)));
+};
+// Read samples: VieNeu → the Vietnamese list; Kokoro → one per language [label, lang, text].
+const SAMPLES_MULTI = () => sampleLangs().map(k => [LS[k].label, k, LS[k].read]);
+const LEGACY_SAMPLES = ['Xin chào! Đây là V Studio, ứng dụng chuyển văn bản thành giọng nói tiếng Việt chạy ngay trên máy của bạn. [cười] Bạn có thể chọn giọng đọc, chỉnh các thông số, nhân bản giọng nói hay tạo cả một đoạn hội thoại nhiều người.'];
+/** True when `text` is empty or one of our samples (so it may be swapped for another language's sample). */
+function isSampleText(key, text) {
+  const t = String(text || '').trim(); if (!t) return true;
+  const known = Object.values(LS).map(x => x[key]).filter(Boolean).map(s => s.trim());
+  if (key === 'read') known.push(...SAMPLES.map(s => s[1]), ...LEGACY_SAMPLES);
+  return known.includes(t);
+}
+/** Language that a module speaks: the language of the voice picked in `sel` (Kokoro), else Vietnamese. */
+function voiceLang(sel) {
+  if (!isMulti()) return 'vi';
+  const v = S.voices.find(x => x.id === $(sel)?.value);
+  return v?.language && LS[v.language] ? v.language : sampleLangs()[0] || 'en-us';
+}
+function fillSamples() {
+  const sel = $('#sampleText'); if (!sel) return;
+  const list = isMulti() ? SAMPLES_MULTI() : SAMPLES;
+  sel.innerHTML = '<option value="">Câu mẫu…</option>' + list.map(([k], i) => `<option value="${i}">${esc(k)}</option>`).join('');
+  const cs = $('#convSample');
+  if (cs) cs.innerHTML = '<option value="">Kịch bản mẫu…</option>' + sampleLangs().map(k => `<option value="${k}">${esc(LS[k].label)}</option>`).join('');
+}
+/** With the multilingual model, switch a voice <select> to a voice that speaks `lang` (if the current one does not). */
+function pickVoiceFor(lang, selId = '#readVoice', quiet = false) {
+  const sel = $(selId); if (!sel) return;
+  const cur = S.voices.find(v => v.id === sel.value);
+  if (!lang || cur?.language === lang) return;
+  const v = S.voices.find(x => x.language === lang && x.featured) || S.voices.find(x => x.language === lang);
+  if (!v) return;
+  sel.value = v.id; sel.dispatchEvent(new Event('change', { bubbles: true }));
+  if (!quiet) toast(`Đã chọn giọng ${v.id} · ${v.language_label}`);
+}
+/** Swap the sample content of every module for the loaded model's language (user text is never touched). */
+function adaptSamples() {
+  if (!S.status?.loaded || !LS.vi) return;
+  const set = (el, key, lang) => {
+    const want = LS[lang]?.[key];
+    if (el && want && isSampleText(key, el.value) && el.value.trim() !== want) { el.value = want; el.dispatchEvent(new Event('input')); }
+  };
+  set($('#text'), 'read', voiceLang('#readVoice'));
+  set($('#lexTry'), 'lex', voiceLang('#lexVoice'));
+  const conv = $('#convScript');
+  if (conv && isSampleText('conv', conv.value) && conv.value.trim() !== LS[convLang()]?.conv) {
+    conv.value = LS[convLang()].conv; store.set('convScript', conv.value); renderSpeakers();
+  }
+  const imp = $('#storyImportText'); if (imp) imp.placeholder = (LS[voiceLang('#readVoice')] || LS.vi).story;
+}
+/** Podcast language (Kokoro only): voices for the speakers are picked among this language's voices. */
+function convLang() {
+  if (!isMulti()) return 'vi';
+  const langs = sampleLangs(), c = S.convLang || store.get('convLang', '');
+  return langs.includes(c) ? c : (langs.includes(voiceLang('#readVoice')) ? voiceLang('#readVoice') : langs[0] || 'en-us');
+}
+function setConvLang(lang) {
+  if (!isMulti()) return;
+  S.convLang = lang; store.set('convLang', lang);
+  // forget voices of the current speakers so they get voices of the new language
+  speakersOf(parseScript($('#convScript').value)).forEach(s => { delete S.convMap[s]; });
+  const sel = $('#convLang'); if (sel) sel.value = lang;
+  renderSpeakers();
+}
+function renderConvLang() {
+  const wrap = $('#convLangWrap'), sel = $('#convLang'); if (!wrap) return;
+  wrap.hidden = !isMulti() || !S.voices.length;
+  sel.innerHTML = sampleLangs().map(k => `<option value="${k}">${esc(LS[k].label)}</option>`).join('');
+  sel.value = convLang();
+}
+
+// ── features the loaded model lacks: warn and lock that module ─────────────
+const hasFeature = (f) => !S.status?.loaded || (S.status.features || []).includes(f);
+function applyFeatures() {
+  const label = S.status?.mode_label || 'Mô hình này';
+  $$('[data-feature]').forEach(el => {
+    const ok = hasFeature(el.dataset.feature);
+    el.inert = !ok; el.classList.toggle('unsupported', !ok);
+    if (!ok) el.setAttribute('aria-disabled', 'true'); else el.removeAttribute('aria-disabled');
+  });
+  $$('[data-feature-warn]').forEach(el => { el.hidden = hasFeature(el.dataset.featureWarn); });
+  // Shown only with a model that has the feature (e.g. emotion chips: VieNeu only); otherwise removed.
+  $$('[data-feature-only]').forEach(el => { el.hidden = !(S.status?.loaded && hasFeature(el.dataset.featureOnly)); });
+  $$('.fw-model').forEach(el => { el.textContent = label; });
+  $$('.tab[data-needs]').forEach(t => {
+    const ok = hasFeature(t.dataset.needs), name = t.querySelector('span')?.textContent || '';
+    t.classList.toggle('warn', !ok);
+    t.title = ok ? name : `${name} — ${label} không hỗ trợ`;
+  });
+}
 /** Plain text of a dropped / picked file (.txt, .md read here; .pdf, .docx by the server). */
 async function readTextFile(f) {
   if (/\.(txt|md|srt)$/i.test(f.name) || f.type.startsWith('text/')) return f.text();
@@ -684,11 +965,13 @@ function fileDropTarget(box, onFile) {
 }
 function initRead() {
   const ta = $('#text');
-  ta.value = store.get('text', 'Xin chào! Đây là V Studio, ứng dụng chuyển văn bản thành giọng nói tiếng Việt chạy ngay trên máy của bạn. [cười] Bạn có thể chọn giọng đọc, chỉnh các thông số, nhân bản giọng nói hay tạo cả một đoạn hội thoại nhiều người.');
+  ta.value = store.get('text', LS.vi?.read || '');
   const count = () => {
     const n = ta.value.length, w = ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0;
-    // ~3.4 syllables (Vietnamese words) per second at a normal reading pace
-    $('#textCount').textContent = `${n.toLocaleString('vi-VN')} ký tự · ${w.toLocaleString('vi-VN')} từ` + (w ? ` · ≈ ${fmtSec(w / 3.4)} âm thanh` : '');
+    // Reading pace: ~3.4 Vietnamese syllables/s, ~2.6 words/s in other languages, ~6 CJK characters/s.
+    const cjk = (ta.value.match(/[぀-ヿ㐀-鿿]/g) || []).length;
+    const secs = cjk ? cjk / 6 + Math.max(0, w - 1) / 2.6 : w / (isMulti() ? 2.6 : 3.4);
+    $('#textCount').textContent = `${n.toLocaleString('vi-VN')} ký tự · ${w.toLocaleString('vi-VN')} từ` + (secs ? ` · ≈ ${fmtSec(secs)} âm thanh` : '');
   };
   ta.addEventListener('input', () => { count(); store.set('text', ta.value); }); count();
   $$('#tab-read [data-insert]').forEach(b => b.addEventListener('click', () => {
@@ -703,13 +986,15 @@ function initRead() {
   $('#textFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) loadFile(f); });
   fileDropTarget($('#textDrop'), loadFile);
   const sample = $('#sampleText');
-  sample.innerHTML += SAMPLES.map(([k], i) => `<option value="${i}">${esc(k)}</option>`).join('');
+  fillSamples();
   sample.addEventListener('change', () => {
-    const it = SAMPLES[+sample.value]; sample.value = ''; if (!it) return;
+    const multi = isMulti(), it = (multi ? SAMPLES_MULTI() : SAMPLES)[+sample.value]; sample.value = ''; if (!it) return;
+    const body = multi ? it[2] : it[1];
     ta.focus(); ta.select();
     // execCommand keeps the replacement on the undo stack (⌘/Ctrl+Z brings the old text back)
-    if (!document.execCommand?.('insertText', false, it[1])) ta.value = it[1];
+    if (!document.execCommand?.('insertText', false, body)) ta.value = body;
     ta.dispatchEvent(new Event('input'));
+    if (multi) pickVoiceFor(it[1]);
   });
   let gm = store.get('genMode', 'stream');
   const setGm = (v) => {
@@ -718,7 +1003,8 @@ function initRead() {
     $('#genModeHint').textContent = v === 'stream' ? 'Phát ngay khi từng đoạn được tạo xong.' : 'Tạo xong toàn bộ rồi mới phát (GPU gộp batch nhiều đoạn — nhanh hơn với văn bản dài).';
   };
   $$('#genMode button').forEach(b => b.addEventListener('click', () => setGm(b.dataset.v))); setGm(gm);
-  $('#readVoice').addEventListener('change', (e) => store.set('voice.' + mode(), e.target.value));
+  $('#readVoice').addEventListener('change', (e) => { store.set('voice.' + mode(), e.target.value); adaptSamples(); });
+  $('#lexVoice').addEventListener('change', adaptSamples);
   const go = () => {
     const text = ta.value.trim(); if (!text) { toast('Hãy nhập văn bản.', true); return; }
     const voice = $('#readVoice').value;
@@ -837,18 +1123,22 @@ function renderSpeakers() {
   if (!S.voices.length) { box.innerHTML = '<div class="muted small">Tải mô hình để chọn giọng cho từng nhân vật.</div>'; return; }
   // Auto-assign: keep previous choices, otherwise give each speaker a distinct editors' pick.
   // Alternate female / male so a two-person script gets two clearly different voices.
-  const ordered = S.voices.filter(v => v.featured && !v.user).concat(S.voices.filter(v => !v.featured && !v.user));
+  // With a multilingual model only voices of the podcast language are candidates.
+  const lang = isMulti() ? convLang() : null;
+  const fits = (id) => S.voices.some(x => x.id === id && (!lang || x.language === lang));
+  const cand = S.voices.filter(v => !v.user && (!lang || v.language === lang));
+  const ordered = cand.filter(v => v.featured).concat(cand.filter(v => !v.featured));
   const fem = ordered.filter(v => v.gender === 'female'), mal = ordered.filter(v => v.gender !== 'female');
   const pool = [];
   for (let i = 0; i < Math.max(fem.length, mal.length); i++) { if (fem[i]) pool.push(fem[i].id); if (mal[i]) pool.push(mal[i].id); }
-  const used = new Set(spk.map(s => S.convMap[s]).filter(v => v && S.voices.some(x => x.id === v)));
+  const used = new Set(spk.map(s => S.convMap[s]).filter(v => v && fits(v)));
   spk.forEach(s => {
-    if (!S.convMap[s] || !S.voices.some(x => x.id === S.convMap[s])) {
+    if (!S.convMap[s] || !fits(S.convMap[s])) {
       const pick = pool.find(v => !used.has(v)) || pool[0]; S.convMap[s] = pick; used.add(pick);
     }
   });
   store.set('convMap', S.convMap);
-  box.innerHTML = spk.map((s, i) => `<div class="spk"><b title="${esc(s)}">${esc(s)}</b><select data-spk="${i}" class="voice-select"></select></div>`).join('');
+  box.innerHTML = spk.map((s, i) => `<div class="spk">${avatar(s)}<b title="${esc(s)}">${esc(s)}</b><select data-spk="${i}" class="voice-select"></select></div>`).join('');
   $$('select', box).forEach((sel) => {
     const s = spk[+sel.dataset.spk]; fillVoiceSelect(sel, S.convMap[s]);
     sel.addEventListener('change', () => { S.convMap[s] = sel.value; store.set('convMap', S.convMap); });
@@ -864,6 +1154,18 @@ function initConv() {
   ta.value = store.get('convScript', ta.value);
   let t; ta.addEventListener('input', () => { store.set('convScript', ta.value); clearTimeout(t); t = setTimeout(renderSpeakers, 400); });
   $('#convScan').onclick = renderSpeakers;
+  $('#convLang').addEventListener('change', (e) => {
+    const lang = e.target.value;
+    if (isSampleText('conv', ta.value) && LS[lang]) { ta.value = LS[lang].conv; store.set('convScript', ta.value); }
+    setConvLang(lang);
+  });
+  $('#convSample').addEventListener('change', (e) => {
+    const lang = e.target.value; e.target.value = ''; if (!LS[lang]) return;
+    ta.focus(); ta.select();
+    if (!document.execCommand?.('insertText', false, LS[lang].conv)) ta.value = LS[lang].conv;
+    store.set('convScript', ta.value);
+    if (isMulti()) setConvLang(lang); else renderSpeakers();
+  });
   $('#convFile').addEventListener('change', async (e) => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try { ta.value = await readTextFile(f); ta.dispatchEvent(new Event('input')); renderSpeakers(); toast(`Đã nạp kịch bản ${f.name}`); }
@@ -873,7 +1175,7 @@ function initConv() {
     const lines = parseScript(ta.value); if (!lines.length) { toast('Kịch bản trống (định dạng: Nhân vật: lời thoại).', true); return; }
     if (!window.VStudio.openStory) { toast('Phòng thu Truyện chưa sẵn sàng.', true); return; }
     renderSpeakers();
-    const COLORS = ['#0d8a68', '#3b82f6', '#d97706', '#c2413b', '#8b5cf6', '#db2777', '#0891b2', '#65a30d'];
+    const COLORS = ['#5b5bd6', '#0891b2', '#d97706', '#d23a4a', '#16a34a', '#db2777', '#0d9488', '#7c3aed'];
     const rid = () => Math.random().toString(36).slice(2, 10);
     const chars = speakersOf(lines).map((name, i) => ({ id: rid(), name: name.slice(0, 60), voice: S.convMap[name] || '', color: COLORS[i % COLORS.length] }));
     const byName = new Map(chars.map((c, i) => [speakersOf(lines)[i], c.id]));
@@ -961,7 +1263,11 @@ function initSrt() {
     updateButtons();
   };
   $('#srtFile').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) load(await f.text(), f.name); });
-  $('#srtSample').onclick = () => load(SAMPLE_SRT, 'sample_vi.srt');
+  // The sample follows the language of the chosen voice (Vietnamese with VieNeu).
+  $('#srtSample').onclick = () => {
+    const lang = voiceLang('#srtVoice');
+    load(lang === 'vi' || !LS[lang] ? SAMPLE_SRT : window.VS_SAMPLES_SRT(LS[lang].subs), `sample_${lang}.srt`);
+  };
   let gap = store.get('srtGap', 0.5);
   sliderControl($('#srtGapWrap'), { label: 'Khoảng lặng giữa các câu (giây)', min: 0, max: 2, step: 0.1, value: gap, onChange: (v) => { gap = v; store.set('srtGap', v); } });
   const keep = $('#srtKeep'); keep.addEventListener('change', () => { $('#srtGapWrap').hidden = keep.checked; });
@@ -1001,78 +1307,99 @@ function initSrt() {
   });
 }
 
-// ── updates ────────────────────────────────────────────────────────────────
-const UPD = { info: null, job: null, timer: null };
+// ── app updates (GitHub releases of V Studio; backend: updater.py) ──────────
+const UPD = { info: null, job: null };
+const fmtMB = (b) => b ? `${Math.round(b / 1e6)} MB` : '';
 async function checkUpdates({ force = false, silent = false } = {}) {
-  if (!silent) $('#updInfo').textContent = 'Đang kiểm tra…';
+  if (!silent) { $('#updInfo').className = 'status small'; $('#updInfo').textContent = 'Đang kiểm tra…'; }
   try { UPD.info = await apiJson('/api/update/check' + (force ? '?force=true' : '')); }
-  catch (e) { if (!silent) { $('#updInfo').textContent = e.message; toast(e.message, true); } return; }
+  catch (e) { if (!silent) { $('#updInfo').className = 'status small err'; $('#updInfo').textContent = e.message; } return; }
   renderUpdate();
-  if (!silent && !UPD.info.update_available) toast(`Đang dùng bản mới nhất (vieneu ${UPD.info.installed})`);
-  if (UPD.info.update_available && store.get('autoInstall', false) && !UPD.job?.running && !UPD.job?.done) installUpdate();
+  if (!silent && !UPD.info.update_available) toast(UPD.info.no_release ? 'Chưa có bản phát hành nào trên GitHub.' : `Đang dùng bản mới nhất (${UPD.info.installed}).`);
 }
 function renderUpdate() {
-  const i = UPD.info, j = UPD.job, bar = $('#updateBar');
+  const i = UPD.info, j = UPD.job;
+  $('#updCur').textContent = i?.installed || '—';
+  $('#updLatest').textContent = i?.latest || '—';
+  $('#updLatestBox').classList.toggle('new', !!i?.update_available);
   if (i) {
-    const date = i.released_at ? new Date(i.released_at).toLocaleDateString('vi-VN') : '';
-    $('#updInfo').innerHTML = `Đang dùng <b>vieneu ${esc(i.installed)}</b> · bản mới nhất trên PyPI: <b>${esc(i.latest)}</b>${date ? ' (' + date + ')' : ''}` +
-      ` · <a href="${esc(i.pypi_url)}" target="_blank" rel="noopener">PyPI</a> · <a href="${esc(i.changes_url)}" target="_blank" rel="noopener">thay đổi</a>`;
-    if (i.frozen) $('#updInfo').innerHTML += '<br><span class="muted">Đây là bản cài đặt sẵn: để cập nhật, hãy tải bản V Studio mới nhất từ <a href="https://github.com/HieuDevs/v-studio/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>.</span>';
-    else if (!i.installer) $('#updInfo').innerHTML += '<br><span class="muted">Không tìm thấy uv hoặc pip trong môi trường của app nên không tự cài được.</span>';
+    const url = i.html_url || i.releases_url;
+    $('#updRepo').textContent = i.repo; $('#updRepo').href = i.releases_url; $('#updPage').href = url;
+    const date = i.published_at ? ` · phát hành ${new Date(i.published_at).toLocaleDateString('vi-VN')}` : '';
+    const info = $('#updInfo');
+    info.className = 'status small' + (i.update_available ? ' ok' : '');
+    info.textContent = i.no_release ? 'Chưa có bản phát hành nào trên GitHub.'
+      : i.update_available ? `Có bản mới V Studio ${i.latest}${date}.` : `Bạn đang dùng bản mới nhất${date}.`;
+    $('#updHow').textContent = !i.update_available ? ''
+      : i.kind === 'installer' ? (i.asset ? `Sẽ tải ${i.asset.name} (${fmtMB(i.asset.size)}), kiểm tra SHA256 rồi mở trình cài đặt.` : 'Bản mới chưa có bộ cài cho hệ điều hành này — xem trang phát hành.')
+      : i.kind === 'git' ? 'Đang chạy từ mã nguồn: app sẽ git pull, cài lại thư viện nếu cần, rồi khởi động lại.'
+      : 'Hãy tải bản mới ở trang phát hành.';
+    const notes = $('#updNotes'); notes.hidden = !(i.update_available && i.notes); notes.textContent = i.notes || '';
   }
-  const canInstall = i?.update_available && i.installer && !j?.running && !(j?.done && j.ok);
+  const okDone = !!(j?.done && j.ok);
+  const canInstall = !!(i?.update_available && i.kind !== 'manual' && (i.kind !== 'installer' || i.asset) && !j?.running && !okDone);
   $('#updInstall').hidden = !canInstall;
-  if (i) $('#updInstall').textContent = `Cập nhật lên ${i.latest}`;
-  const needRestart = !!(j?.done && j.ok) || !!i?.restart_needed;
-  $('#updRestart').hidden = !needRestart;
-  $('#updLog').hidden = !j; if (j) { $('#updLog').textContent = j.log; $('#updLog').scrollTop = 1e9; }
-
+  $('#updInstall').textContent = i?.kind === 'installer' ? `Tải & cài ${i?.latest || ''}` : `Cập nhật lên ${i?.latest || ''}`;
+  $('#updRestart').hidden = !((okDone && j.kind === 'git') || i?.restart_needed);
+  $('#updQuit').hidden = !(okDone && j.kind === 'installer');
+  const prog = $('#updProg'); prog.hidden = !j?.running;
+  if (j?.running) {
+    const PH = { download: 'Đang tải bộ cài…', verify: 'Đang kiểm tra SHA256…', open: 'Đang mở trình cài đặt…', pull: 'Đang lấy mã mới (git pull)…', deps: 'Đang cài lại thư viện…' };
+    $('i', prog).style.width = j.progress != null ? `${Math.round(j.progress * 100)}%` : '35%';
+    $('span', prog).textContent = (PH[j.phase] || 'Đang cập nhật…') + (j.progress != null ? ` ${Math.round(j.progress * 100)}%` : '');
+  }
+  $('#updLog').hidden = !j?.log; if (j?.log) { $('#updLog').textContent = j.log; $('#updLog').scrollTop = 1e9; }
+  $('#updDot').hidden = !i?.update_available;
   // banner
-  let text = '', show = false;
-  if (j?.running) { text = `Đang cập nhật vieneu ${j.from} → ${i?.latest || 'mới nhất'}… Bạn vẫn dùng app bình thường.`; show = true; }
-  else if (needRestart) { text = `Đã cài vieneu ${j?.to || i?.latest}. Khởi động lại app để áp dụng.`; show = true; }
-  else if (j?.done && !j.ok) { text = 'Cập nhật thất bại — xem chi tiết trong mục Mô hình › Cập nhật.'; show = true; }
-  else if (i?.update_available && store.get('dismissed', '') !== i.latest) { text = `Có bản VieNeu-TTS SDK mới: ${i.latest} (bạn đang dùng ${i.installed}).`; show = true; }
-  bar.hidden = !show; $('#updateText').textContent = text;
-  $('#updateDot').className = 'dot ' + (j?.running ? 'busy' : j?.done && !j.ok ? 'err' : 'ok');
-  $('#updateNow').hidden = !(canInstall || needRestart);
-  $('#updateNow').textContent = needRestart ? 'Khởi động lại' : 'Cập nhật ngay';
+  let text = '';
+  if (j?.running) text = `Đang cập nhật V Studio ${j.from} → ${j.to}… Bạn vẫn dùng app bình thường.`;
+  else if (okDone && j.kind === 'installer') text = `Đã mở trình cài đặt V Studio ${j.to}. Đóng app này để hoàn tất cài đặt.`;
+  else if (okDone || i?.restart_needed) text = `Đã cập nhật V Studio ${j?.to || i?.latest}. Khởi động lại app để dùng bản mới.`;
+  else if (j?.done && !j.ok) text = 'Cập nhật thất bại — bấm để xem chi tiết.';
+  else if (i?.update_available && store.get('updDismissed', '') !== i.latest) text = `Có bản V Studio ${i.latest} mới (bạn đang dùng ${i.installed}).`;
+  $('#updateBar').hidden = !text; $('#updateText').textContent = text;
   $('#updateLater').hidden = !!j?.running;
 }
 async function installUpdate() {
   try { UPD.job = await apiJson('/api/update/install', { method: 'POST' }); }
-  catch (e) { toast(e.message, true); return; }
+  catch (e) { toast(e.message, true, 6000); return; }
   renderUpdate();
   const poll = async () => {
     try { UPD.job = await apiJson('/api/update/status'); } catch { /* server busy */ }
     renderUpdate();
-    if (UPD.job.running) setTimeout(poll, 1000);
-    else if (UPD.job.ok) toast(`Đã cập nhật vieneu ${UPD.job.from} → ${UPD.job.to}. Khởi động lại app để áp dụng.`, false, 6000);
-    else toast('Cập nhật thất bại, xem log trong mục Cập nhật.', true, 6000);
+    if (UPD.job.running) { setTimeout(poll, 700); return; }
+    if (!UPD.job.ok) toast('Cập nhật thất bại, xem chi tiết trong mục Cập nhật.', true, 6000);
+    else if (UPD.job.kind === 'installer') toast('Đã mở trình cài đặt. Đóng V Studio để hoàn tất.', false, 6000);
+    else toast(`Đã cập nhật lên ${UPD.job.to}. Khởi động lại app để dùng bản mới.`, false, 6000);
   };
-  setTimeout(poll, 800);
+  setTimeout(poll, 500);
 }
 async function restartApp() {
   if (S.busy) { toast('Đang tạo âm thanh — hãy đợi xong rồi khởi động lại.', true); return; }
-  try {
-    const r = await nativeApi().restart();   // opens a fresh window, then closes this one
-    if (r && !r.ok) toast(r.error, true);
-    else { $('#updateText').textContent = 'Đang khởi động lại…'; $('#updateNow').hidden = true; }
-  } catch (e) { toast(e.message, true); }
+  try { const r = await nativeApi().restart(); if (r && !r.ok) toast(r.error, true); }   // opens a fresh window, then closes this one
+  catch (e) { toast(e.message, true); }
+}
+async function quitApp() {
+  try { await nativeApi().quit(); } catch (e) { toast(e.message, true); }
+}
+function openUpdates() {
+  renderUpdate(); $('#updDialog').showModal();
+  if (!UPD.info) checkUpdates({ silent: true });
 }
 function initUpdates() {
-  const autoCheck = store.get('autoCheck', true), autoInstall = store.get('autoInstall', false);
-  $('#updAutoCheck').checked = autoCheck; $('#updAutoInstall').checked = autoInstall;
+  const auto = store.get('autoCheck', true);
+  $('#updAutoCheck').checked = auto;
   $('#updAutoCheck').onchange = (e) => store.set('autoCheck', e.target.checked);
-  $('#updAutoInstall').onchange = (e) => { store.set('autoInstall', e.target.checked); if (e.target.checked && UPD.info?.update_available) installUpdate(); };
+  $('#updBtn').onclick = openUpdates;
   $('#updCheck').onclick = () => checkUpdates({ force: true });
   $('#updInstall').onclick = installUpdate;
   $('#updRestart').onclick = restartApp;
-  $('#updateNow').onclick = () => ((UPD.job?.done && UPD.job.ok) || UPD.info?.restart_needed ? restartApp() : installUpdate());
-  $('#updateLater').onclick = () => { if (UPD.info) store.set('dismissed', UPD.info.latest); $('#updateBar').hidden = true; };
+  $('#updQuit').onclick = quitApp;
+  $('#updateNow').onclick = openUpdates;
+  $('#updateLater').onclick = () => { if (UPD.info?.latest) store.set('updDismissed', UPD.info.latest); $('#updateBar').hidden = true; };
   apiJson('/api/update/status').then(j => { if (j.running || j.done) { UPD.job = j; renderUpdate(); } }).catch(() => {});
-  if (autoCheck) {
-    setTimeout(() => checkUpdates({ silent: true }), 3000);
+  if (auto) {
+    setTimeout(() => checkUpdates({ silent: true }), 4000);
     setInterval(() => { if (store.get('autoCheck', true)) checkUpdates({ silent: true }); }, 6 * 3600 * 1000);
   }
 }
@@ -1097,8 +1424,8 @@ function init() {
   initTheme();
   $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
   switchTab(store.get('tab', 'read'));
-  $('#modelPill').onclick = openModelDialog;
-  $$('#modelDialog input[name=mode]').forEach(r => r.addEventListener('change', syncModeFields));
+  $('#modelPill').onclick = () => openModelDialog();
+  initModelDialog();
   $('#loadBtn').onclick = loadModel;
   $('#paramGroups').addEventListener('input', onParamInput);
   $('#paramGroups').addEventListener('change', onParamInput);
@@ -1126,5 +1453,6 @@ document.addEventListener('DOMContentLoaded', init);
 window.VStudio = Object.assign(window.VStudio || {}, {
   S, store, api, apiJson, toast, esc, fmtSec, synth, speak, runJob, addHistory, setStatus,
   encodeWav, int16ToF32, fillVoiceSelect, sliderControl, switchTab, readTextFile, fileDropTarget, confirmClick, nativeApi,
+  avatar, icon,
 });
 // ── /story ──

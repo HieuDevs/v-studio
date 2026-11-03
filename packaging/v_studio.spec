@@ -14,13 +14,14 @@ datas = [(str(ROOT / "v_studio" / "ui"), "v_studio/ui")]
 binaries = []
 hiddenimports = [
     "v_studio.server", "v_studio.engine", "v_studio.recorder", "v_studio.updater", "v_studio.stories",
-    "v_studio.lexicon", "v_studio.library", "v_studio.music",
+    "v_studio.lexicon", "v_studio.library", "v_studio.music", "v_studio.kokoro",
     "uvicorn.logging", "uvicorn.loops.auto", "uvicorn.protocols.http.auto", "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan.on",
 ]
 
 # Packages that load model code, assets or lazy submodules at run time.
-for pkg in ("vieneu", "sea_g2p", "webview", "librosa", "kaldi_native_fbank", "soundfile", "sounddevice"):
+for pkg in ("vieneu", "sea_g2p", "webview", "librosa", "kaldi_native_fbank", "soundfile", "sounddevice",
+            "kokoro_onnx", "espeakng_loader", "phonemizer", "pyopenjtalk"):
     try:
         d, b, h = collect_all(pkg)
     except Exception:  # noqa: BLE001 — optional on some platforms
@@ -30,7 +31,8 @@ for pkg in ("vieneu", "sea_g2p", "webview", "librosa", "kaldi_native_fbank", "so
     hiddenimports += h
 
 # importlib.metadata lookups (version display, update check).
-for dist in ("vieneu", "onnxruntime", "huggingface_hub", "numpy", "librosa", "fastapi", "uvicorn", "pywebview"):
+for dist in ("vieneu", "onnxruntime", "huggingface_hub", "numpy", "librosa", "fastapi", "uvicorn", "pywebview",
+             "kokoro-onnx", "phonemizer", "espeakng-loader"):
     try:
         datas += copy_metadata(dist)
     except Exception:  # noqa: BLE001

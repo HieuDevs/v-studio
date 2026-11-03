@@ -108,7 +108,7 @@ jobs:
           mkdir -p out
           cp screenshot.png out/ 2>/dev/null || true
           cp app-stdout.txt out/ 2>/dev/null || true
-          cp ~/.vieneu/studio.log out/ 2>/dev/null || cp "$USERPROFILE/.vieneu/studio.log" out/ 2>/dev/null || true
+          cp ~/.vstudio/v-studio.log out/ 2>/dev/null || cp "$USERPROFILE/.vstudio/v-studio.log" out/ 2>/dev/null || true
           cp smoke.txt out/ 2>/dev/null || true
           # Public annotations (job logs need admin rights to read through the API).
           for f in smoke.txt studio.log app-stdout.txt; do

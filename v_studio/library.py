@@ -1,5 +1,5 @@
 """Library ("Thư viện"): every generated clip kept across launches, under
-``~/.vieneu/studio/library/``:
+``~/.vstudio/library/``:
 
     index.json      [{id, title, kind, voice, text, duration, sr, created, bytes}]  newest first
     <id>.flac       the audio
@@ -29,7 +29,7 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
-from .engine import voices_home
+from .engine import app_home
 
 router = APIRouter(prefix="/api/library")
 
@@ -39,7 +39,7 @@ MAX_AUDIO = 500 * 1024 * 1024
 
 
 def library_dir() -> Path:
-    return voices_home() / "studio" / "library"
+    return app_home() / "library"
 
 
 def _index_path() -> Path:
