@@ -1,0 +1,60 @@
+/* Library, pronunciation dictionary, background music, read-tab extras.
+   Uses the theme variables of style.css. */
+
+/* read tab: drop a file onto the text box */
+.text-drop { position: relative; }
+.text-drop textarea { display: block; }
+.drop-veil {
+  position: absolute; inset: 0; display: none; place-items: center; border-radius: 10px; pointer-events: none;
+  border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent-soft) 88%, transparent);
+  color: var(--accent); font-weight: 650;
+}
+.text-drop.over .drop-veil { display: grid; }
+.small-select { width: auto; padding: 5px 8px; font-size: 12.5px; border-radius: 8px; }
+
+/* library */
+.lib-filter { display: flex; gap: 8px; margin-bottom: 10px; }
+.lib-filter input { flex: 1; min-width: 0; padding: 7px 10px; }
+.lib-filter select { width: auto; max-width: 45%; padding: 7px 10px; }
+.history { max-height: 460px; overflow: auto; }
+.history .title { cursor: text; }
+.history input.rename { padding: 3px 7px; font-weight: 600; font-size: 13px; border-radius: 6px; }
+.history .unsaved { color: var(--warn); }
+.lib-foot { margin-top: 10px; }
+.lib-foot code { font-size: 11px; }
+.check.small { font-size: 12.5px; }
+.check.small input { width: 14px; height: 14px; }
+
+/* pronunciation dictionary */
+.toolbar .lex-filter { width: 200px; flex: 0 0 200px; padding: 6px 10px; }
+.lex-table { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; max-height: 380px; overflow: auto; }
+.lex-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lex-table th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); color: var(--muted); font-weight: 600;
+  font-size: 12px; text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.lex-table td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.lex-table th:nth-child(1), .lex-table th:nth-child(2) { width: 38%; }
+.lex-table td.c, .lex-table th:nth-child(n+3) { text-align: center; }
+.lex-table input.lx { padding: 6px 8px; border-radius: 7px; }
+.lex-table input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+.lex-table tr.off input.lx { opacity: .5; }
+.lex-table tr.dup input[data-f="src"] { border-color: var(--warn); }
+.lex-empty { padding: 14px; }
+.lex-try { margin-top: 14px; }
+.lex-try textarea { min-height: 54px; margin: 6px 0 8px; }
+.lex-out { font-size: 13.5px; margin: 2px 0; overflow-wrap: anywhere; }
+.lex-voice { width: auto; max-width: 320px; padding: 6px 8px; }
+.lex-help { margin-top: 12px; }
+.lex-help summary { cursor: pointer; color: var(--muted); }
+.lex-help ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* background music */
+.music-box { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.music-box summary { cursor: pointer; display: flex; align-items: baseline; gap: 10px; list-style: none; }
+.music-box summary::-webkit-details-marker { display: none; }
+.music-box summary::before { content: "▸"; color: var(--muted); font-size: 12px; transition: transform .15s; }
+.music-box[open] summary::before { transform: rotate(90deg); }
+.music-title { font-weight: 650; font-size: 13.5px; }
+.music-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 12px 0 6px; }
+.music-row select { flex: 1 1 240px; min-width: 0; padding: 7px 10px; }
+.music-params { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 18px; margin-top: 10px; }
+@media (max-width: 860px) { .music-params { grid-template-columns: 1fr; } .toolbar .lex-filter { width: 140px; flex-basis: 140px; } }

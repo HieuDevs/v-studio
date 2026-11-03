@@ -1,0 +1,127 @@
+name: Smoke test release
+
+# Download the published installers, install them on clean machines, start the
+# app, load the model, generate speech and take a screenshot of the window.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test (empty = latest)
+        default: ""
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+jobs:
+  smoke:
+    name: Test (${{ matrix.name }})
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS 14 arm64, os: macos-14, asset: "*macOS-arm64.dmg" }
+          - { name: macOS 15 arm64, os: macos-15, asset: "*macOS-arm64.dmg" }
+          - { name: Windows Server 2022, os: windows-2022, asset: "*Windows-x64-Setup.exe" }
+          - { name: Windows Server 2025, os: windows-2025, asset: "*Windows-x64-Setup.exe" }
+          - { name: Ubuntu 22.04, os: ubuntu-22.04, asset: "*Linux-amd64.deb" }
+          - { name: Ubuntu 24.04, os: ubuntu-24.04, asset: "*Linux-amd64.deb" }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download installer
+        run: |
+          TAG="$TAG"
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then TAG="${{ github.event.workflow_run.head_branch }}"; fi
+          echo "Testing ${TAG:-latest release}"
+          gh release download $TAG -p "${{ matrix.asset }}" -D dl
+          ls -lh dl
+
+      - name: Install and start (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          hdiutil attach dl/*.dmg -nobrowse -mountpoint /Volumes/VStudio
+          cp -R "/Volumes/VStudio/V Studio.app" /Applications/
+          open "/Applications/V Studio.app"
+
+      - name: Install and start (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dl\*.exe)[0].FullName
+          Start-Process -Wait -FilePath $setup -ArgumentList '/VERYSILENT','/CURRENTUSER','/SUPPRESSMSGBOXES','/NORESTART'
+          $exe = "$env:LOCALAPPDATA\Programs\V Studio\VStudio.exe"
+          if (-not (Test-Path $exe)) { Get-ChildItem -Recurse "$env:LOCALAPPDATA\Programs" | Select-Object -First 30; throw "not installed at $exe" }
+          Start-Process -FilePath $exe
+
+      - name: Install and start (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./dl/*.deb xvfb imagemagick
+          Xvfb :99 -screen 0 1400x950x24 &
+          sleep 2
+          DISPLAY=:99 nohup v-studio > app-stdout.txt 2>&1 &
+
+      - name: Load model and generate speech
+        run: |
+          set -o pipefail
+          PYBIN=python3; command -v python3 >/dev/null && python3 -c "" 2>/dev/null || PYBIN=python
+          "$PYBIN" packaging/smoke_test.py 2>&1 | tee smoke.txt
+
+      - name: Screenshot (macOS)
+        if: always() && runner.os == 'macOS'
+        continue-on-error: true
+        run: screencapture -x screenshot.png
+
+      - name: Screenshot (Windows)
+        if: always() && runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $p = Get-Process | Where-Object { $_.ProcessName -like 'VStudio*' } | Select-Object ProcessName, Id, MainWindowTitle | Out-String
+          Write-Output "::notice title=${{ matrix.name }} processes::$($p -replace "`r",'' -replace "`n",'%0A')"
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("screenshot.png")
+
+      - name: Screenshot (Linux)
+        if: always() && runner.os == 'Linux'
+        continue-on-error: true
+        run: import -display :99 -window root screenshot.png
+
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p out
+          cp screenshot.png out/ 2>/dev/null || true
+          cp app-stdout.txt out/ 2>/dev/null || true
+          cp ~/.vieneu/studio.log out/ 2>/dev/null || cp "$USERPROFILE/.vieneu/studio.log" out/ 2>/dev/null || true
+          cp smoke.txt out/ 2>/dev/null || true
+          # Public annotations (job logs need admin rights to read through the API).
+          for f in smoke.txt studio.log app-stdout.txt; do
+            [ -s "out/$f" ] || continue
+            msg=$(tail -25 "out/$f" | cut -c1-300 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::notice title=${{ matrix.name }} ${f}::${msg}"
+          done
+          [ -s out/studio.log ] || echo "::notice title=${{ matrix.name }} studio.log::(no studio.log)"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}
+          path: out/
+

@@ -1,0 +1,10 @@
+vieneu>=3.8
+# Recent huggingface_hub and onnxruntime work too; this pair matches the VieNeu-TTS lock file.
+onnxruntime>=1.20,<1.25
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+pywebview>=5.0
+truststore>=0.9
+pypdf>=4.0
+sounddevice>=0.4
